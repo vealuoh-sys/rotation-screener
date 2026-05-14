@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ROTATION SCREENER — Money Flow Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#03080D; --s1:#080F18; --s2:#0C1A28; --s3:#0F2133;
+  --border:#132435; --border2:#1E3A55;
+  --acc:#00FFB2; --acc2:#00BFFF; --warn:#FFB800;
+  --up:#00FFB2; --dn:#FF5E3A; --neu:#3A6880;
+  --sector:#BF5FFF; --corr:#FFD700; --vol:#FF9500;
+  --text:#B8D4E8; --muted:#3A6880; --muted2:#2A4D65;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden;}
+
+/* Grid background */
+body::before{content:'';position:fixed;inset:0;
+  background-image:linear-gradient(rgba(0,191,255,.015) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,191,255,.015) 1px,transparent 1px);
+  background-size:52px 52px;pointer-events:none;z-index:0;}
+
+/* Flow animation — diagonal money rivers */
+body::after{content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(
+    135deg,transparent,transparent 60px,
+    rgba(0,255,178,.012) 60px,rgba(0,255,178,.012) 61px
+  );pointer-events:none;z-index:0;animation:flowAnim 12s linear infinite;}
+@keyframes flowAnim{to{background-position:200px 200px;}}
+
+.app{position:relative;z-index:1;max-width:1640px;margin:0 auto;padding:18px 22px 50px;}
+
+/* ── Header ── */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 0 20px;border-bottom:1px solid var(--border);margin-bottom:22px;flex-wrap:wrap;gap:14px;}
+.logo{display:flex;align-items:center;gap:16px;}
+.logo-mark{position:relative;width:48px;height:48px;}
+.logo-hex{position:absolute;inset:0;border:2px solid var(--acc);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));background:rgba(0,255,178,.04);}
+.logo-arrows{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.1rem;animation:rotateArrows 3s ease-in-out infinite alternate;}
+@keyframes rotateArrows{from{transform:rotate(-8deg);}to{transform:rotate(8deg);}}
+.brand-name{font-family:'Syne',sans-serif;font-weight:900;font-size:1.4rem;letter-spacing:.15em;color:#fff;}
+.brand-name em{color:var(--acc);font-style:normal;}
+.brand-sub{font-size:.56rem;color:var(--muted);letter-spacing:.2em;margin-top:2px;}
+.hdr-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.live-pill{display:flex;align-items:center;gap:7px;font-size:.62rem;letter-spacing:.18em;color:var(--acc);border:1px solid rgba(0,255,178,.3);padding:5px 14px;clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:blink 1.4s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.scan-time{font-size:.58rem;color:var(--muted);letter-spacing:.1em;}
+.scan-btn{background:transparent;border:1px solid var(--acc2);color:var(--acc2);font-family:'Space Mono',monospace;font-size:.66rem;letter-spacing:.14em;padding:9px 20px;cursor:pointer;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));transition:all .2s;display:flex;align-items:center;gap:8px;}
+.scan-btn:hover:not(:disabled){background:rgba(0,191,255,.1);}
+.scan-btn:disabled{opacity:.45;cursor:default;}
+.spin{animation:rot 1s linear infinite;display:inline-block;}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* ── VP Screener link ── */
+.vp-link{display:inline-flex;align-items:center;gap:7px;font-size:.6rem;letter-spacing:.14em;color:var(--muted);border:1px solid var(--border2);padding:5px 14px;text-decoration:none;transition:all .2s;clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));}
+.vp-link:hover{color:var(--acc2);border-color:var(--acc2);background:rgba(0,191,255,.06);}
+
+/* ── Stats row ── */
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:22px;}
+@media(max-width:1000px){.stats{grid-template-columns:repeat(3,1fr);}}
+@media(max-width:500px){.stats{grid-template-columns:repeat(2,1fr);}}
+.stat{background:var(--s1);border:1px solid var(--border);padding:12px 16px;position:relative;overflow:hidden;}
+.stat::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--c,var(--acc));}
+.stat-lbl{font-size:.52rem;color:var(--muted);letter-spacing:.2em;margin-bottom:6px;}
+.stat-val{font-family:'Syne',sans-serif;font-weight:900;font-size:1.7rem;color:var(--c,#fff);line-height:1;}
+.stat-sub{font-size:.52rem;color:var(--muted);margin-top:4px;letter-spacing:.1em;}
+
+/* ── Two-column layout ── */
+.main-layout{display:grid;grid-template-columns:1fr 360px;gap:18px;align-items:start;}
+@media(max-width:1100px){.main-layout{grid-template-columns:1fr;}}
+
+/* ── Signal table ── */
+.panel{background:var(--s1);border:1px solid var(--border);}
+.panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;background:var(--s2);border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px;}
+.panel-title{font-family:'Syne',sans-serif;font-weight:800;font-size:.8rem;letter-spacing:.14em;color:#fff;}
+.panel-meta{font-size:.56rem;color:var(--muted);letter-spacing:.12em;}
+
+/* Filter tabs */
+.filter-tabs{display:flex;gap:6px;padding:10px 18px;background:var(--s2);border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.ftab{background:transparent;border:1px solid var(--border);color:var(--muted);font-family:'Space Mono',monospace;font-size:.6rem;letter-spacing:.1em;padding:4px 12px;cursor:pointer;transition:all .15s;}
+.ftab.on-sector{border-color:var(--sector);color:var(--sector);background:rgba(191,95,255,.08);}
+.ftab.on-corr   {border-color:var(--corr);color:var(--corr);background:rgba(255,215,0,.07);}
+.ftab.on-vol    {border-color:var(--vol);color:var(--vol);background:rgba(255,149,0,.08);}
+.ftab:hover:not([class*="on-"]){border-color:var(--muted2);color:var(--text);}
+
+/* Scoring filter */
+.score-filter{display:flex;align-items:center;gap:8px;padding:8px 18px;background:var(--bg);border-bottom:1px solid var(--border);}
+.score-lbl{font-size:.55rem;color:var(--muted);letter-spacing:.15em;white-space:nowrap;}
+.score-slider{flex:1;accent-color:var(--acc2);height:3px;}
+.score-val{font-size:.6rem;color:var(--acc2);width:36px;text-align:right;font-weight:700;}
+
+/* Signal rows */
+.sig-table-head{display:grid;grid-template-columns:32px 1fr 80px 90px 110px 80px 70px;padding:8px 18px;background:var(--s2);border-bottom:1px solid var(--border);}
+.th{font-size:.52rem;color:var(--muted);letter-spacing:.16em;text-align:right;}
+.th:nth-child(-n+2){text-align:left;}
+.sig-rows{min-height:200px;}
+.sig-row{display:grid;grid-template-columns:32px 1fr 80px 90px 110px 80px 70px;padding:10px 18px;border-bottom:1px solid rgba(19,36,53,.8);align-items:center;cursor:pointer;transition:background .15s;animation:fadeUp .25s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+.sig-row:hover{background:rgba(0,255,178,.03);}
+.td{font-size:.66rem;text-align:right;color:var(--text);}
+.td:nth-child(-n+2){text-align:left;}
+
+/* Type badge */
+.type-badge{display:inline-flex;align-items:center;gap:4px;font-size:.54rem;font-weight:700;padding:2px 7px;letter-spacing:.08em;white-space:nowrap;}
+.type-badge.SECTOR {color:var(--sector);background:rgba(191,95,255,.1);border:1px solid rgba(191,95,255,.25);}
+.type-badge.CORR   {color:var(--corr);background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);}
+.type-badge.VOLFLOW{color:var(--vol);background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.25);}
+
+/* Coin cell */
+.coin-cell{display:flex;flex-direction:column;gap:2px;}
+.sym{font-family:'Syne',sans-serif;font-weight:700;font-size:.84rem;color:#fff;letter-spacing:.04em;}
+.narrative{font-size:.5rem;color:var(--muted);line-height:1.4;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Change cells */
+.chg{font-size:.68rem;font-weight:700;}
+.chg.up{color:var(--up);}
+.chg.dn{color:var(--dn);}
+.chg.neu{color:var(--neu);}
+
+/* Score bar */
+.score-wrap{display:flex;align-items:center;gap:5px;justify-content:flex-end;}
+.score-bg{width:38px;height:3px;background:var(--border2);}
+.score-fg{height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));}
+.score-num{font-size:.58rem;color:var(--acc);width:28px;text-align:right;font-weight:700;}
+
+/* Lag arrow */
+.lag-cell{display:flex;align-items:center;gap:4px;justify-content:flex-end;}
+.lag-arrow{font-size:.9rem;}
+
+/* ── Sector heat map ── */
+.sector-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:14px;}
+.sector-card{background:var(--s2);border:1px solid var(--border);padding:10px 12px;cursor:default;transition:all .2s;position:relative;overflow:hidden;}
+.sector-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--heat-color,var(--muted));opacity:.7;}
+.sector-card:hover{border-color:var(--border2);}
+.sc-name{font-size:.56rem;color:var(--muted);letter-spacing:.16em;margin-bottom:6px;}
+.sc-change{font-family:'Syne',sans-serif;font-weight:900;font-size:1.1rem;line-height:1;}
+.sc-change.up{color:var(--up);}
+.sc-change.dn{color:var(--dn);}
+.sc-change.neu{color:var(--neu);}
+.sc-meta{display:flex;justify-content:space-between;margin-top:5px;}
+.sc-vol{font-size:.52rem;color:var(--muted);letter-spacing:.08em;}
+.sc-coins{font-size:.5rem;color:var(--muted2);}
+
+/* Heat bar filling the card background */
+.sector-card{--heat-pct:50%;}
+.sector-card::before{content:'';position:absolute;inset:0;background:var(--heat-bg,transparent);opacity:.06;pointer-events:none;}
+
+/* ── Flow chart ── */
+.flow-panel{margin-top:18px;}
+.flow-canvas-wrap{padding:14px;position:relative;}
+#flowCanvas{width:100%;border:1px solid var(--border);background:var(--s2);}
+
+/* ── Coin detail drawer ── */
+.drawer{position:fixed;right:-420px;top:0;bottom:0;width:400px;background:var(--s1);border-left:1px solid var(--border2);z-index:200;transition:right .3s cubic-bezier(.4,0,.2,1);overflow-y:auto;}
+.drawer.open{right:0;}
+.drawer-hdr{padding:16px 20px;background:var(--s2);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1;}
+.drawer-title{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:#fff;letter-spacing:.08em;}
+.drawer-close{background:transparent;border:1px solid var(--border2);color:var(--muted);width:28px;height:28px;display:grid;place-items:center;cursor:pointer;font-size:.9rem;transition:all .2s;}
+.drawer-close:hover{border-color:var(--dn);color:var(--dn);}
+.drawer-body{padding:18px 20px;display:flex;flex-direction:column;gap:16px;}
+.d-section{display:flex;flex-direction:column;gap:8px;}
+.d-section-title{font-size:.54rem;color:var(--muted);letter-spacing:.2em;border-bottom:1px solid var(--border);padding-bottom:6px;}
+.d-row{display:flex;justify-content:space-between;align-items:center;font-size:.65rem;}
+.d-lbl{color:var(--muted);}
+.d-val{font-weight:700;color:#fff;}
+.d-val.up{color:var(--up);}
+.d-val.dn{color:var(--dn);}
+.d-narrative{font-size:.62rem;color:var(--text);line-height:1.6;background:var(--s2);padding:10px 12px;border-left:3px solid var(--acc2);}
+
+/* Strength meter */
+.d-meter-wrap{display:flex;flex-direction:column;gap:6px;}
+.d-meter-lbl{display:flex;justify-content:space-between;font-size:.55rem;color:var(--muted);}
+.d-meter-bg{height:6px;background:var(--border2);position:relative;overflow:hidden;}
+.d-meter-fg{height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .6s cubic-bezier(.4,0,.2,1);}
+
+/* Sector peer list */
+.peer-list{display:flex;flex-direction:column;gap:4px;}
+.peer-row{display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--s2);border:1px solid var(--border);font-size:.62rem;}
+.peer-sym{font-weight:700;color:#fff;}
+.peer-change{font-weight:700;}
+.peer-row.is-target{border-color:var(--acc2);background:rgba(0,191,255,.05);}
+.peer-row.is-leader{border-color:var(--up);background:rgba(0,255,178,.04);}
+
+/* Overlay */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:199;backdrop-filter:blur(3px);}
+.overlay.open{display:block;}
+
+/* Empty / skeleton */
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;}
+.empty-ico{font-size:2.4rem;opacity:.12;}
+.empty-txt{font-size:.66rem;color:var(--muted);letter-spacing:.12em;text-align:center;line-height:1.9;}
+.skel{height:12px;border-radius:2px;background:linear-gradient(90deg,var(--s1) 25%,var(--s2) 50%,var(--s1) 75%);background-size:200% 100%;animation:shim 1.4s infinite;}
+@keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* Progress */
+.prog-wrap{display:none;align-items:center;gap:10px;padding:8px 18px;background:var(--s2);border-bottom:1px solid var(--border);font-size:.6rem;color:var(--muted);}
+.prog-wrap.show{display:flex;}
+.prog-bg{flex:1;height:2px;background:var(--border2);}
+.prog-fg{height:100%;background:linear-gradient(90deg,var(--acc2),var(--acc));transition:width .3s ease;}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--s2);border:1px solid var(--acc2);color:var(--acc2);font-size:.62rem;letter-spacing:.1em;padding:10px 18px;z-index:999;display:none;}
+
+/* ── Legend ── */
+.legend-row{display:flex;gap:18px;flex-wrap:wrap;padding:14px 18px;background:var(--s2);border-top:1px solid var(--border);}
+.leg{display:flex;align-items:center;gap:7px;font-size:.55rem;color:var(--muted);}
+.leg-dot{width:9px;height:9px;border-radius:50%;}
+
+/* Responsive */
+@media(max-width:900px){
+  .sig-table-head,.sig-row{grid-template-columns:28px 1fr 80px 110px 70px;}
+  .th:nth-child(3),.th:nth-child(5),.td:nth-child(3),.td:nth-child(5){display:none;}
+  .sector-grid{grid-template-columns:1fr;}
+  .drawer{width:100%;right:-100%;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <div class="logo-hex"></div>
+      <div class="logo-arrows">⇄</div>
+    </div>
+    <div>
+      <div class="brand-name">ROT<em>8</em>ION</div>
+      <div class="brand-sub">BINANCE · SECTOR FLOW · CORR DIVERGENCE · VOL ROTATION SCREENER</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <a class="vp-link" href="/" title="Open VP Screener">◈ VP SCREENER</a>
+    <div class="scan-time" id="scanTime">LAST SCAN: —</div>
+    <div class="live-pill"><div class="dot"></div>LIVE</div>
+    <button class="scan-btn" id="scanBtn" onclick="triggerAndPoll()">
+      <span id="scanIcon">⟳</span> SCAN NOW
+    </button>
+  </div>
+</header>
+
+<!-- Stats -->
+<div class="stats">
+  <div class="stat" style="--c:var(--acc2)"><div class="stat-lbl">COINS TRACKED</div><div class="stat-val" id="stCoins">—</div><div class="stat-sub">BINANCE SPOT</div></div>
+  <div class="stat" style="--c:var(--sector)"><div class="stat-lbl">SECTOR ROTATIONS</div><div class="stat-val" id="stSector">—</div><div class="stat-sub">SAME SECTOR LAG</div></div>
+  <div class="stat" style="--c:var(--corr)"><div class="stat-lbl">CORR DIVERGENCE</div><div class="stat-val" id="stCorr">—</div><div class="stat-sub">PAIR SPREAD</div></div>
+  <div class="stat" style="--c:var(--vol)"><div class="stat-lbl">VOL FLOW SIGNALS</div><div class="stat-val" id="stVol">—</div><div class="stat-sub">DRY POWDER</div></div>
+  <div class="stat" style="--c:var(--warn)"><div class="stat-lbl">TOTAL SIGNALS</div><div class="stat-val" id="stTotal">—</div></div>
+  <div class="stat" style="--c:var(--up)"><div class="stat-lbl">TOP SIGNAL SCORE</div><div class="stat-val" id="stTopScore">—</div><div class="stat-sub" id="stTopCoin">—</div></div>
+</div>
+
+<!-- Two-col: signals + sector map -->
+<div class="main-layout">
+
+  <!-- Left: signal table -->
+  <div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-title">🔄 ROTATION SIGNALS</div>
+        <div class="panel-meta" id="sigCount">— SIGNALS</div>
+      </div>
+      <div class="filter-tabs">
+        <span style="font-size:.54rem;color:var(--muted);letter-spacing:.16em;align-self:center;margin-right:4px;">TYPE:</span>
+        <button class="ftab on-sector" data-type="SECTOR"  onclick="togType(this)">🔄 SECTOR</button>
+        <button class="ftab on-corr"   data-type="CORR"    onclick="togType(this)">⚖️ CORR</button>
+        <button class="ftab on-vol"    data-type="VOLFLOW" onclick="togType(this)">💰 VOLFLOW</button>
+      </div>
+      <div class="score-filter">
+        <span class="score-lbl">MIN SCORE:</span>
+        <input type="range" class="score-slider" id="scoreSlider" min="0" max="90" value="40" oninput="onScoreChange(this)">
+        <span class="score-val" id="scoreVal">40%</span>
+      </div>
+      <div class="prog-wrap" id="progWrap">
+        <span id="progTxt">SCANNING…</span>
+        <div class="prog-bg"><div class="prog-fg" id="progFg" style="width:0%"></div></div>
+      </div>
+      <div class="sig-table-head">
+        <div class="th">#</div>
+        <div class="th">TARGET COIN</div>
+        <div class="th">TYPE</div>
+        <div class="th">1H CHG</div>
+        <div class="th">LAGGING BEHIND</div>
+        <div class="th">VOL</div>
+        <div class="th">SCORE</div>
+      </div>
+      <div class="sig-rows" id="sigRows">
+        <div class="empty">
+          <div class="empty-ico">⇄</div>
+          <div class="empty-txt">CLICK "SCAN NOW" TO DETECT ROTATION SIGNALS<br>ACROSS ALL SECTORS AND CORRELATION PAIRS</div>
+        </div>
+      </div>
+      <div class="legend-row">
+        <div class="leg"><div class="leg-dot" style="background:var(--sector)"></div>SECTOR — pumped peer, lagging coin</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--corr)"></div>CORR — correlated pair diverged</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--vol)"></div>VOLFLOW — vol spike nearby, no volume yet</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: sector heat map -->
+  <div>
+    <div class="panel">
+      <div class="panel-hdr">
+        <div class="panel-title">🗺 SECTOR HEAT MAP</div>
+        <div class="panel-meta">1H AVG CHANGE</div>
+      </div>
+      <div class="sector-grid" id="sectorGrid">
+        <!-- filled by JS -->
+        <div style="grid-column:1/-1"><div class="empty"><div class="empty-ico">◫</div><div class="empty-txt">WAITING FOR SCAN</div></div></div>
+      </div>
+    </div>
+
+    <!-- Money flow diagram -->
+    <div class="panel flow-panel">
+      <div class="panel-hdr">
+        <div class="panel-title">💸 MONEY FLOW RANK</div>
+        <div class="panel-meta">SECTORS BY 1H PERFORMANCE</div>
+      </div>
+      <div class="flow-canvas-wrap">
+        <canvas id="flowCanvas" height="260"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main-layout -->
+
+</div><!-- /app -->
+
+<!-- ── Coin detail drawer ── -->
+<div class="overlay" id="overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-hdr">
+    <div class="drawer-title" id="drawerTitle">—</div>
+    <button class="drawer-close" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeTypes = new Set(['SECTOR','CORR','VOLFLOW']);
+let minScore    = 40;
+let allSignals  = [];
+let allMetrics  = {};
+let allSectors  = {};
+let pollTimer   = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fp(p) {
+  if (!p && p !== 0) return '—';
+  if (p >= 10000) return p.toLocaleString('en', {maximumFractionDigits:1});
+  if (p >= 1)     return p.toFixed(4);
+  return p.toFixed(6);
+}
+function fpc(v) {
+  const s = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  return { str: s, cls: v > 0.2 ? 'up' : v < -0.2 ? 'dn' : 'neu' };
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 4000);
+}
+
+// ── Render signal table ───────────────────────────────────────────────────────
+function render() {
+  const sigs = allSignals.filter(s =>
+    activeTypes.has(s.type) && s.score >= minScore
+  );
+
+  document.getElementById('stSector').textContent = allSignals.filter(s=>s.type==='SECTOR').length;
+  document.getElementById('stCorr').textContent   = allSignals.filter(s=>s.type==='CORR').length;
+  document.getElementById('stVol').textContent    = allSignals.filter(s=>s.type==='VOLFLOW').length;
+  document.getElementById('stTotal').textContent  = allSignals.length;
+  document.getElementById('sigCount').textContent = `${sigs.length} SIGNAL${sigs.length!==1?'S':''}`;
+
+  if (allSignals.length > 0) {
+    const top = allSignals[0];
+    document.getElementById('stTopScore').textContent = top.score + '%';
+    document.getElementById('stTopCoin').textContent  = top.symbol.replace('USDT','') + ' (' + top.type + ')';
+  }
+
+  const rows = document.getElementById('sigRows');
+  if (sigs.length === 0) {
+    rows.innerHTML = `<div class="empty"><div class="empty-ico">⇄</div><div class="empty-txt">NO SIGNALS MATCH CURRENT FILTERS<br>LOWER MIN SCORE OR ENABLE MORE SIGNAL TYPES</div></div>`;
+    return;
+  }
+
+  rows.innerHTML = sigs.map((s, i) => {
+    const own   = fpc(s.ownChange1h);
+    const lag   = s.lag;
+    const volC  = s.volRatio >= 2 ? 'up' : s.volRatio < 0.8 ? 'neu' : '';
+    const typeEmoji = {SECTOR:'🔄',CORR:'⚖️',VOLFLOW:'💰'}[s.type]||'';
+    const sigData = JSON.stringify(s).replace(/"/g,"'");
+
+    return `
+    <div class="sig-row" style="animation-delay:${i*22}ms" onclick="openDrawer(${i})">
+      <div class="td" style="font-size:.55rem;color:var(--muted)">${i+1}</div>
+      <div class="td">
+        <div class="coin-cell">
+          <div class="sym">${s.symbol.replace('USDT','')}</div>
+          <div class="narrative">${s.narrative}</div>
+        </div>
+      </div>
+      <div class="td"><span class="type-badge ${s.type}">${typeEmoji} ${s.type}</span></div>
+      <div class="td"><span class="chg ${own.cls}">${own.str}</span></div>
+      <div class="td">
+        <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+          <span style="font-size:.62rem;color:#fff;font-weight:700">${s.leader.replace('USDT','')}</span>
+          <span style="font-size:.54rem;color:var(--up)">+${s.leaderGain.toFixed(1)}% | lag ${lag.toFixed(1)}%</span>
+        </div>
+      </div>
+      <div class="td"><span class="chg ${volC}">${s.volRatio.toFixed(1)}x</span></div>
+      <div class="td">
+        <div class="score-wrap">
+          <div class="score-bg"><div class="score-fg" style="width:${s.score}%"></div></div>
+          <div class="score-num">${s.score}%</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Sector heat map ───────────────────────────────────────────────────────────
+function renderSectorGrid(sectors) {
+  if (!sectors || Object.keys(sectors).length === 0) return;
+  allSectors = sectors;
+
+  const entries  = Object.entries(sectors).sort((a,b) => b[1].avgChange1h - a[1].avgChange1h);
+  const maxAbs   = Math.max(...entries.map(([,v]) => Math.abs(v.avgChange1h)), 0.1);
+
+  document.getElementById('sectorGrid').innerHTML = entries.map(([name, data]) => {
+    const c       = data.avgChange1h;
+    const fmt     = fpc(c);
+    const pct     = Math.abs(c) / maxAbs;
+    const heatBg  = c > 0 ? `rgba(0,255,178,${(pct*0.3).toFixed(2)})` : `rgba(255,94,58,${(pct*0.3).toFixed(2)})`;
+    const heatLine= c > 0 ? 'var(--up)' : c < -0.1 ? 'var(--dn)' : 'var(--muted)';
+    const volStr  = data.maxVolRatio >= 2 ? `🔥 ${data.maxVolRatio.toFixed(1)}x` : `${data.maxVolRatio.toFixed(1)}x`;
+
+    return `
+    <div class="sector-card" style="--heat-bg:${heatBg};--heat-color:${heatLine}">
+      <div class="sc-name">${name.replace('_',' ')}</div>
+      <div class="sc-change ${fmt.cls}">${fmt.str}</div>
+      <div class="sc-meta">
+        <span class="sc-vol">VOL ${volStr}</span>
+        <span class="sc-coins">${data.coins} coins</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderFlowChart(entries);
+}
+
+// ── Flow bar chart (canvas) ───────────────────────────────────────────────────
+function renderFlowChart(entries) {
+  const canvas = document.getElementById('flowCanvas');
+  const dpr    = window.devicePixelRatio || 1;
+  const W      = canvas.parentElement.clientWidth - 28;
+  const H      = 260;
+  canvas.width  = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const sorted  = [...entries].sort((a,b) => b[1].avgChange1h - a[1].avgChange1h);
+  const n       = sorted.length;
+  const maxAbs  = Math.max(...sorted.map(([,v]) => Math.abs(v.avgChange1h)), 0.5);
+  const barH    = Math.floor((H - 20) / n) - 4;
+  const midX    = W * 0.38;
+
+  ctx.font = `bold ${Math.max(9,barH*0.5)}px 'Space Mono', monospace`;
+
+  sorted.forEach(([name, data], i) => {
+    const y    = i * (barH + 4) + 10;
+    const c    = data.avgChange1h;
+    const frac = Math.abs(c) / maxAbs;
+    const barW = Math.max(2, frac * (W - midX - 40));
+
+    // Label
+    ctx.fillStyle = '#3A6880';
+    ctx.textAlign = 'right';
+    ctx.fillText(name.replace('_',' '), midX - 6, y + barH * 0.72);
+
+    // Bar
+    const grad = ctx.createLinearGradient(
+      c >= 0 ? midX : midX - barW, 0,
+      c >= 0 ? midX + barW : midX, 0
+    );
+    if (c >= 0) {
+      grad.addColorStop(0, 'rgba(0,255,178,0.2)');
+      grad.addColorStop(1, 'rgba(0,255,178,0.8)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(midX, y, barW, barH);
+    } else {
+      grad.addColorStop(0, 'rgba(255,94,58,0.8)');
+      grad.addColorStop(1, 'rgba(255,94,58,0.2)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(midX - barW, y, barW, barH);
+    }
+
+    // Value label
+    ctx.fillStyle = c >= 0 ? '#00FFB2' : '#FF5E3A';
+    ctx.textAlign = 'left';
+    const xVal = c >= 0 ? midX + barW + 5 : midX - barW - 2;
+    ctx.textAlign = c >= 0 ? 'left' : 'right';
+    ctx.fillText((c >= 0 ? '+' : '') + c.toFixed(1) + '%', xVal, y + barH * 0.72);
+  });
+
+  // Center line
+  ctx.strokeStyle = 'rgba(58,104,128,0.5)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath(); ctx.moveTo(midX, 0); ctx.lineTo(midX, H); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Drawer ────────────────────────────────────────────────────────────────────
+function openDrawer(idx) {
+  const filtered = allSignals.filter(s => activeTypes.has(s.type) && s.score >= minScore);
+  const s = filtered[idx];
+  if (!s) return;
+
+  document.getElementById('drawerTitle').textContent = s.symbol.replace('USDT','') + ' — ' + s.type;
+
+  const m       = allMetrics[s.symbol] || {};
+  const ml      = allMetrics[s.leader] || {};
+  const own1h   = fpc(s.ownChange1h);
+  const own4h   = fpc(s.ownChange4h || 0);
+  const lead1h  = fpc(s.leaderGain);
+  const typeDesc= {
+    SECTOR: 'A coin in the same sector pumped. Capital historically rotates to laggards within 1–4 hours.',
+    CORR:   'Two historically correlated coins have diverged. The laggard tends to mean-revert upward.',
+    VOLFLOW:'A sector peer absorbed a major volume spike. No volume on this coin yet — dry powder.',
+  }[s.type] || '';
+
+  // Sector peers
+  const SECTORS_MAP = {
+    L1_MAJOR:['BTCUSDT','ETHUSDT','SOLUSDT','AVAXUSDT','DOTUSDT'],
+    L1_ALT:['NEARUSDT','APTUSDT','SUIUSDT','ALGOUSDT','EGLDUSDT'],
+    L2:['MATICUSDT','ARBUSDT','OPUSDT','IMXUSDT','STXUSDT'],
+    DEFI:['UNIUSDT','AAVEUSDT','CRVUSDT','MKRUSDT','SNXUSDT','COMPUSDT','SUSHIUSDT','DYDXUSDT','GMXUSDT','CAKEUSDT'],
+    AI_DATA:['FETUSDT','GRTUSDT','INJUSDT'],
+    GAMING:['AXSUSDT','SANDUSDT','MANAUSDT','GALAUSDT','GMTUSDT','APEUSDT'],
+    INFRA:['LINKUSDT','ATOMUSDT','FILUSDT','LDOUSDT','ENSUSDT'],
+    PAYMENTS:['XRPUSDT','XLMUSDT','LTCUSDT','VETUSDT'],
+    LARGE_CAP:['BNBUSDT','ADAUSDT','DOGEUSDT'],
+    COSMOS:['ATOMUSDT','TIAUSDT','RUNEUSDT'],
+  };
+  const peerSyms = SECTORS_MAP[s.sector] || [];
+  const peerRows = peerSyms
+    .filter(sym => allMetrics[sym])
+    .sort((a,b) => (allMetrics[b].change1h||0) - (allMetrics[a].change1h||0))
+    .map(sym => {
+      const mm  = allMetrics[sym];
+      const chg = fpc(mm.change1h || 0);
+      const cls = sym === s.symbol ? 'is-target' : sym === s.leader ? 'is-leader' : '';
+      const tag = sym === s.symbol ? ' ← TARGET' : sym === s.leader ? ' ← LEADER' : '';
+      return `<div class="peer-row ${cls}">
+        <span class="peer-sym">${sym.replace('USDT','')}</span>
+        <span class="peer-change ${chg.cls}">${chg.str}${tag}</span>
+      </div>`;
+    }).join('');
+
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="d-section">
+      <div class="d-section-title">SIGNAL OVERVIEW</div>
+      <div class="d-narrative">${s.narrative}</div>
+      <div class="d-narrative" style="border-left-color:var(--sector);margin-top:6px;font-size:.58rem;color:var(--muted)">${typeDesc}</div>
+    </div>
+
+    <div class="d-section">
+      <div class="d-section-title">SIGNAL STRENGTH</div>
+      <div class="d-meter-wrap">
+        <div class="d-meter-lbl"><span>ROTATION PROBABILITY</span><span style="color:var(--acc)">${s.score}%</span></div>
+        <div class="d-meter-bg"><div class="d-meter-fg" style="width:0%" id="drawerMeter"></div></div>
+      </div>
+    </div>
+
+    <div class="d-section">
+      <div class="d-section-title">TARGET: ${s.symbol}</div>
+      <div class="d-row"><span class="d-lbl">PRICE</span><span class="d-val">$${fp(s.price)}</span></div>
+      <div class="d-row"><span class="d-lbl">1H CHANGE</span><span class="d-val ${own1h.cls}">${own1h.str}</span></div>
+      <div class="d-row"><span class="d-lbl">4H CHANGE</span><span class="d-val ${own4h.cls}">${own4h.str}</span></div>
+      <div class="d-row"><span class="d-lbl">VOL RATIO</span><span class="d-val">${s.volRatio}x ${s.volDry ? '🌵 DRY' : ''}</span></div>
+      <div class="d-row"><span class="d-lbl">SECTOR</span><span class="d-val">${s.sector}</span></div>
+    </div>
+
+    <div class="d-section">
+      <div class="d-section-title">LEADER: ${s.leader}</div>
+      <div class="d-row"><span class="d-lbl">1H GAIN</span><span class="d-val up">+${s.leaderGain.toFixed(2)}%</span></div>
+      <div class="d-row"><span class="d-lbl">LAG (TARGET vs LEADER)</span><span class="d-val" style="color:var(--warn)">${s.lag.toFixed(2)}%</span></div>
+      ${s.leaderVol ? `<div class="d-row"><span class="d-lbl">LEADER VOL SPIKE</span><span class="d-val up">${s.leaderVol}x</span></div>` : ''}
+    </div>
+
+    ${peerRows ? `<div class="d-section"><div class="d-section-title">SECTOR PEERS — ${s.sector}</div><div class="peer-list">${peerRows}</div></div>` : ''}
+  `;
+
+  // Open
+  document.getElementById('drawer').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+
+  // Animate meter after open
+  setTimeout(() => {
+    const meter = document.getElementById('drawerMeter');
+    if (meter) meter.style.width = s.score + '%';
+  }, 120);
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+// ── Scan trigger + poll ───────────────────────────────────────────────────────
+async function triggerAndPoll() {
+  const btn  = document.getElementById('scanBtn');
+  const icon = document.getElementById('scanIcon');
+  const prog = document.getElementById('progWrap');
+  const pfg  = document.getElementById('progFg');
+  const ptxt = document.getElementById('progTxt');
+
+  btn.disabled = true; icon.className = 'spin'; icon.textContent = '◌';
+  prog.classList.add('show'); pfg.style.width = '5%';
+  ptxt.textContent = 'STARTING SCAN…';
+
+  // Show skeleton
+  document.getElementById('sigRows').innerHTML =
+    Array.from({length:8}).map(()=>`
+    <div style="display:grid;grid-template-columns:32px 1fr 80px 90px 110px 80px 70px;padding:10px 18px;border-bottom:1px solid rgba(19,36,53,.8);gap:8px">
+      ${Array.from({length:7}).map((_,j)=>`<div class="skel" style="width:${[18,100,60,40,80,30,40][j]}px"></div>`).join('')}
+    </div>`).join('');
+
+  try {
+    const tr  = await fetch('/api/trigger-scan');
+    const td  = await tr.json();
+    if (!td.ok && td.message !== 'Already scanning') throw new Error(td.message);
+
+    ptxt.textContent = 'FETCHING BINANCE DATA…';
+    clearInterval(pollTimer);
+    let prog2 = 8;
+
+    pollTimer = setInterval(async () => {
+      try {
+        const res  = await fetch('/api/rotation');
+        const data = await res.json();
+        prog2 = Math.min(prog2 + 4, data.scanning ? 85 : 100);
+        pfg.style.width = prog2 + '%';
+
+        if (!data.scanning) {
+          clearInterval(pollTimer);
+          ingestData(data);
+          setTimeout(() => prog.classList.remove('show'), 600);
+          btn.disabled = false; icon.className = ''; icon.textContent = '⟳';
+        } else {
+          ptxt.textContent = `SCANNING… ${data.coinCount||0} COINS`;
+        }
+      } catch(e) { clearInterval(pollTimer); throw e; }
+    }, 2500);
+
+  } catch(e) {
+    pfg.style.width = '0%';
+    showToast('⚠ Server error — is rotation-server.js running?');
+    setTimeout(() => prog.classList.remove('show'), 600);
+    btn.disabled = false; icon.className = ''; icon.textContent = '⟳';
+  }
+}
+
+function ingestData(data) {
+  allSignals = data.signals || [];
+  allMetrics = data.metrics || {};
+  document.getElementById('stCoins').textContent = data.coinCount || 0;
+  document.getElementById('scanTime').textContent = 'LAST SCAN: ' + new Date(data.ts).toLocaleTimeString('en-GB');
+  render();
+  fetchSectors();
+}
+
+async function fetchSectors() {
+  try {
+    const res  = await fetch('/api/sectors');
+    const data = await res.json();
+    if (data.ok) renderSectorGrid(data.sectors);
+  } catch {}
+}
+
+async function loadCached() {
+  try {
+    const res  = await fetch('/api/rotation');
+    const data = await res.json();
+    if (data.signals && data.signals.length > 0) ingestData(data);
+    if (data.scanning) triggerAndPoll();
+  } catch {}
+}
+
+// ── Filter controls ───────────────────────────────────────────────────────────
+function togType(el) {
+  const t = el.dataset.type;
+  const cls = `on-${t.toLowerCase()}`;
+  if (activeTypes.has(t)) {
+    if (activeTypes.size === 1) return;
+    activeTypes.delete(t); el.classList.remove(cls);
+  } else {
+    activeTypes.add(t); el.classList.add(cls);
+  }
+  render();
+}
+function onScoreChange(el) {
+  minScore = parseInt(el.value);
+  document.getElementById('scoreVal').textContent = minScore + '%';
+  render();
+}
+
+// ── Resize ────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (Object.keys(allSectors).length > 0) {
+    const entries = Object.entries(allSectors).sort((a,b)=>b[1].avgChange1h-a[1].avgChange1h);
+    renderFlowChart(entries);
+  }
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  loadCached();
+  setInterval(triggerAndPoll, 10 * 60 * 1000); // auto-refresh every 10 min
+});
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+</script>
+</body>
+</html>
