@@ -22,19 +22,72 @@ const TG_TOKEN = process.env.TG_TOKEN || '';
 const TG_CHAT  = process.env.TG_CHAT  || '';
 
 // ── Sector definitions ────────────────────────────────────────────────────────
-// Each coin belongs to one sector. When one coin pumps, we look for laggards
-// in the same sector. Sectors are kept tight (3–6 coins) for signal quality.
+// 150+ coins across 16 sectors. More coins = more rotation signals even in
+// quiet markets. Every sector has enough members that one will always move.
 const SECTORS = {
-  'L1_MAJOR':  ['BTCUSDT','ETHUSDT','SOLUSDT','AVAXUSDT','DOTUSDT'],
-  'L1_ALT':    ['NEARUSDT','APTUSDT','SUIUSDT','ALGOUSDT','EGLDUSDT'],
-  'L2':        ['MATICUSDT','ARBUSDT','OPUSDT','IMXUSDT','STXUSDT'],
-  'DEFI':      ['UNIUSDT','AAVEUSDT','CRVUSDT','MKRUSDT','SNXUSDT','COMPUSDT','SUSHIUSDT','DYDXUSDT','GMXUSDT','CAKEUSDT'],
-  'AI_DATA':   ['FETUSDT','GRTUSDT','INJUSDT'],
-  'GAMING':    ['AXSUSDT','SANDUSDT','MANAUSDT','GALAUSDT','GMTUSDT','APEUSDT'],
-  'INFRA':     ['LINKUSDT','ATOMUSDT','FILUSDT','LDOUSDT','ENSUSDT'],
-  'PAYMENTS':  ['XRPUSDT','XLMUSDT','LTCUSDT','VETUSDT'],
-  'LARGE_CAP': ['BNBUSDT','ADAUSDT','DOGEUSDT'],
-  'COSMOS':    ['ATOMUSDT','TIAUSDT','RUNEUSDT'],
+  'L1_MAJOR':  [
+    'BTCUSDT','ETHUSDT','SOLUSDT','AVAXUSDT','DOTUSDT',
+    'BNBUSDT','ADAUSDT','TRXUSDT','HBARUSDT','TONUSDT'
+  ],
+  'L1_ALT':    [
+    'NEARUSDT','APTUSDT','SUIUSDT','ALGOUSDT','EGLDUSDT',
+    'ICPUSDT','FTMUSDT','ONEUSDT','ZILUSDT','KAVAUSDT',
+    'FLOWUSDT','MINAUSDT','XTZUSDT','EOSUSDT','THETAUSDT'
+  ],
+  'L2':        [
+    'MATICUSDT','ARBUSDT','OPUSDT','IMXUSDT','STXUSDT',
+    'METISUSDT','SKLUSDT','LRCUSDT','NTRNUSDT','SCROLLUSDT'
+  ],
+  'DEFI':      [
+    'UNIUSDT','AAVEUSDT','CRVUSDT','MKRUSDT','SNXUSDT',
+    'COMPUSDT','SUSHIUSDT','DYDXUSDT','GMXUSDT','CAKEUSDT',
+    'BALUSDT','YFIUSDT','1INCHUSDT','RUNEUSDT','KNCUSDT'
+  ],
+  'AI_DATA':   [
+    'FETUSDT','GRTUSDT','INJUSDT','WLDUSDT','AGIXUSDT',
+    'OCEANUSDT','NMRUSDT','PHAUSDT','RNDRUSDT','TAOУСDT'
+  ],
+  'GAMING':    [
+    'AXSUSDT','SANDUSDT','MANAUSDT','GALAUSDT','GMTUSDT',
+    'APEUSDT','ILVUSDT','SLPUSDT','YGGUSDT','MBOXUSDT',
+    'ALICEUSDT','TLMUSDT','RAREUSDT'
+  ],
+  'INFRA':     [
+    'LINKUSDT','FILUSDT','LDOUSDT','ENSUSDT','STORJUSDT',
+    'SCUSDT','AKROUSDT','NKNUSDT','XVSUSDT','IOTAUSDT'
+  ],
+  'PAYMENTS':  [
+    'XRPUSDT','XLMUSDT','LTCUSDT','VETUSDT','NANOUSDT',
+    'ZECUSDT','DASHUSDT','BCHUSDT','DGBUSDT','QNTUSDT'
+  ],
+  'COSMOS':    [
+    'ATOMUSDT','TIAUSDT','RUNEUSDT','INJUSDT',
+    'AKTUSDT','OSMOУСDT','EVMOSUSDT','STRDUSDT'
+  ],
+  'MEME':      [
+    'DOGEUSDT','SHIBUSDT','PEPEUSDT','FLOKIUSDT','BONKUSDT',
+    'WIFUSDT','MEMEUSDT','TURBOUSDT'
+  ],
+  'EXCHANGE':  [
+    'BNBUSDT','CAKEUSDT','DYDXUSDT','GTUSDT'
+  ],
+  'PRIVACY':   [
+    'XMRUSDT','ZECUSDT','ROSEUSDT','PHAUSDT','SCRTUSDT'
+  ],
+  'ORACLE':    [
+    'LINKUSDT','BANDUSDT','APIUSDT'
+  ],
+  'NFT':       [
+    'ENSUSDT','RAREUSDT','SUPERUSDT','XCNUSDT'
+  ],
+  'REAL_WORLD':[
+    'RLCUSDT','COTIUSDT','ACHUSDT','REQUSDT','POLCUSDT'
+  ],
+  'BIG_ALTS':  [
+    'SOLUSDT','AVAXUSDT','DOTUSDT','NEARUSDT','MATICUSDT',
+    'LTCUSDT','LINKUSDT','ATOMUSDT','UNIUSDT','AAVEUSDT',
+    'XRPUSDT','ADAUSDT','FILUSDT','ARBUSDT','OPUSDT'
+  ],
 };
 
 // Build reverse lookup: symbol → sector
@@ -45,21 +98,47 @@ Object.entries(SECTORS).forEach(([sector, coins]) => {
 
 const ALL_SYMBOLS = [...new Set(Object.values(SECTORS).flat())];
 
-// Correlation pairs — coins historically strongly correlated.
-// When the ratio diverges > threshold, the laggard is a rotation candidate.
+// Correlation pairs — 30 pairs covering all major relationships.
+// When the ratio diverges, the laggard is a rotation candidate.
 const CORR_PAIRS = [
-  ['ETHUSDT',  'SOLUSDT'],
-  ['AVAXUSDT', 'NEARUSDT'],
-  ['ARBUSDT',  'OPUSDT'],
-  ['UNIUSDT',  'AAVEUSDT'],
-  ['SANDUSDT', 'MANAUSDT'],
-  ['FETUSDT',  'GRTUSDT'],
-  ['XRPUSDT',  'XLMUSDT'],
-  ['APTUSDT',  'SUIUSDT'],
-  ['MATICUSDT','ARBUSDT'],
+  // L1 pairs
   ['BTCUSDT',  'ETHUSDT'],
-  ['ATOMUSDT', 'TIAUSDT'],
+  ['ETHUSDT',  'SOLUSDT'],
+  ['SOLUSDT',  'AVAXUSDT'],
+  ['AVAXUSDT', 'NEARUSDT'],
+  ['DOTUSDT',  'NEARUSDT'],
+  ['APTUSDT',  'SUIUSDT'],
+  ['FTMUSDT',  'AVAXUSDT'],
+  ['ALGOUSDT', 'NEARUSDT'],
+  // L2 pairs
+  ['ARBUSDT',  'OPUSDT'],
+  ['MATICUSDT','ARBUSDT'],
+  ['IMXUSDT',  'OPUSDT'],
+  // DeFi pairs
+  ['UNIUSDT',  'AAVEUSDT'],
+  ['CRVUSDT',  'AAVEUSDT'],
+  ['GMXUSDT',  'DYDXUSDT'],
+  ['MKRUSDT',  'AAVEUSDT'],
+  ['SUSHIUSDT','UNIUSDT'],
+  // Gaming pairs
+  ['SANDUSDT', 'MANAUSDT'],
   ['AXSUSDT',  'GALAUSDT'],
+  ['APEUSDT',  'AXSUSDT'],
+  ['ILVUSDT',  'AXSUSDT'],
+  // Meme pairs
+  ['DOGEUSDT', 'SHIBUSDT'],
+  ['PEPEUSDT', 'FLOKIUSDT'],
+  ['BONKUSDT', 'WIFUSDT'],
+  // Payment pairs
+  ['XRPUSDT',  'XLMUSDT'],
+  ['LTCUSDT',  'BCHUSDT'],
+  // AI pairs
+  ['FETUSDT',  'AGIXUSDT'],
+  ['FETUSDT',  'GRTUSDT'],
+  ['RNDRUSDT', 'FETUSDT'],
+  // Cosmos pairs
+  ['ATOMUSDT', 'TIAUSDT'],
+  ['ATOMUSDT', 'AKTUSDT'],
 ];
 
 // ── In-memory state ───────────────────────────────────────────────────────────
