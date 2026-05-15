@@ -257,7 +257,7 @@ function calcMetrics(candles1h, candles4h, candles1d) {
  */
 function detectSectorRotation(metrics) {
   const signals = [];
-  const PUMP_THRESHOLD = 0.4; // % gain in 1h to be considered "pumped"
+  const PUMP_THRESHOLD = 2.5; // % gain in 1h to be considered "pumped"
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
     // Find the pumped coin(s)
@@ -323,7 +323,7 @@ function detectCorrelationDivergence(metrics) {
     // Simple proxy: 1h change divergence
     const diff = mA.change1h - mB.change1h;
     const absDiff = Math.abs(diff);
-    if (absDiff < 0.3) return; // need meaningful divergence
+    if (absDiff < 2.0) return; // need meaningful divergence
 
     // The laggard is the one with the lower 1h gain
     const laggard = diff > 0 ? symB : symA;
@@ -367,7 +367,7 @@ function detectCorrelationDivergence(metrics) {
  */
 function detectVolumeFlow(metrics) {
   const signals = [];
-  const VOL_SPIKE = 1.3;
+  const VOL_SPIKE = 2.5;
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
     // Find the vol leader
