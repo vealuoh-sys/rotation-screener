@@ -178,7 +178,7 @@ function calcMetrics(candles1h, candles4h, candles1d) {
  */
 function detectSectorRotation(metrics) {
   const signals = [];
-  const PUMP_THRESHOLD = 2.5; // % gain in 1h to be considered "pumped"
+  const PUMP_THRESHOLD = 0.4; // % gain in 1h to be considered "pumped"
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
     // Find the pumped coin(s)
@@ -195,16 +195,16 @@ function detectSectorRotation(metrics) {
     coins.forEach(sym => {
       if (!metrics[sym]) return;
       if (sym === leader)            return;
-      if (metrics[sym].change1h > leaderGain * 0.5) return; // already moved
+      if (metrics[sym].change1h > leaderGain * 0.7) return; // already moved
 
       const m     = metrics[sym];
       const lag   = leaderGain - m.change1h;          // how far behind
       const volDry= m.volRatio < 1.2;                  // no volume yet = dry powder
       const score = Math.min(100, Math.round(
-        40 +                                           // base
-        Math.min(lag * 4, 30) +                        // lag magnitude bonus
+        35 +                                           // base
+        Math.min(lag * 8, 35) +                        // lag magnitude bonus
         (volDry ? 15 : 0) +                            // dry powder bonus
-        Math.min(leaderGain * 2, 15)                   // leader strength bonus
+        Math.min(leaderGain * 4, 15)                   // leader strength bonus
       ));
 
       signals.push({
@@ -244,7 +244,7 @@ function detectCorrelationDivergence(metrics) {
     // Simple proxy: 1h change divergence
     const diff = mA.change1h - mB.change1h;
     const absDiff = Math.abs(diff);
-    if (absDiff < 2.0) return; // need meaningful divergence
+    if (absDiff < 0.3) return; // need meaningful divergence
 
     // The laggard is the one with the lower 1h gain
     const laggard = diff > 0 ? symB : symA;
@@ -253,7 +253,7 @@ function detectCorrelationDivergence(metrics) {
     const mLeader = metrics[leader];
 
     // Also check 4h for confirmation — laggard should not be in a strong downtrend
-    if (mL.change4h < -5) return; // don't catch falling knives
+    if (mL.change4h < -8) return; // don't catch falling knives
 
     const score = Math.min(100, Math.round(
       40 +
@@ -288,12 +288,12 @@ function detectCorrelationDivergence(metrics) {
  */
 function detectVolumeFlow(metrics) {
   const signals = [];
-  const VOL_SPIKE = 2.5;
+  const VOL_SPIKE = 1.3;
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
     // Find the vol leader
     const volLeaders = coins
-      .filter(sym => metrics[sym] && metrics[sym].volRatio >= VOL_SPIKE && metrics[sym].change1h > 0)
+      .filter(sym => metrics[sym] && metrics[sym].volRatio >= VOL_SPIKE && metrics[sym].change1h > -1)
       .sort((a, b) => metrics[b].volRatio - metrics[a].volRatio);
 
     if (volLeaders.length === 0) return;
@@ -303,8 +303,8 @@ function detectVolumeFlow(metrics) {
     coins.forEach(sym => {
       if (!metrics[sym] || sym === leader) return;
       const m = metrics[sym];
-      if (m.volRatio > 1.8) return;         // already has volume
-      if (m.change1h < -3)  return;         // skip if dumping
+      if (m.volRatio > mLeader.volRatio * 0.8) return; // already has similar volume
+      if (m.change1h < -5)  return;         // skip if dumping hard
 
       const score = Math.min(100, Math.round(
         40 +
