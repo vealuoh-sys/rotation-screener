@@ -108,6 +108,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:16p
 .type-badge.SECTOR {color:var(--sector);background:rgba(191,95,255,.1);border:1px solid rgba(191,95,255,.25);}
 .type-badge.CORR   {color:var(--corr);background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);}
 .type-badge.VOLFLOW{color:var(--vol);background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.25);}
+.type-badge.multi  {color:#fff;background:rgba(255,255,255,.1);border:2px solid var(--acc);animation:pulse 2s ease-in-out infinite;font-weight:900;}
 
 /* Coin cell */
 .coin-cell{display:flex;flex-direction:column;gap:2px;}
@@ -407,7 +408,7 @@ function render() {
           <div class="narrative">${s.narrative}</div>
         </div>
       </div>
-      <div class="td"><span class="type-badge ${s.type}">${typeEmoji} ${s.type}</span></div>
+      <div class="td"><span class="type-badge ${s.confirmed ? 'multi' : s.type}">${typeEmoji} ${s.confirmed ? '⚡ '+s.confirmedTypes.join('+') : s.type}</span></div>
       <div class="td"><span class="chg ${own.cls}">${own.str}</span></div>
       <div class="td">
         <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
@@ -648,8 +649,14 @@ function openDrawer(idx) {
 
   document.getElementById('drawerBody').innerHTML = `
     <div class="d-section">
-      <div class="d-section-title">📝 SIGNAL</div>
-      <div class="d-narrative">${s.narrative}</div>
+      <div class="d-section-title">${s.confirmed ? '⚡ MULTI-CONFIRMED SIGNAL' : '📝 SIGNAL'}</div>
+      ${s.confirmed
+        ? `<div style="font-size:.58rem;color:var(--acc);background:rgba(0,255,178,.06);border:1px solid rgba(0,255,178,.2);padding:8px 10px;margin-bottom:8px;letter-spacing:.08em">
+             ⚡ This coin was flagged by <b>${s.confirmedTypes.length} independent signal types</b> — highest conviction setup.
+           </div>
+           ${(s.allNarratives||[]).map(n=>`<div class="d-narrative" style="margin-bottom:6px">${n}</div>`).join('')}`
+        : `<div class="d-narrative">${s.narrative}</div>`
+      }
     </div>
 
     <div class="d-section">
