@@ -413,9 +413,15 @@ function render() {
         <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
           <span style="font-size:.62rem;color:#fff;font-weight:700">${s.leader.replace('USDT','')}</span>
           <span style="font-size:.54rem;color:var(--up)">+${s.leaderGain.toFixed(1)}% | lag ${lag.toFixed(1)}%</span>
+          <span style="font-size:.5rem;color:${s.narCount>=2?'var(--acc)':s.narCount===1?'var(--corr)':'var(--muted)'}">${s.narLabel||''}</span>
         </div>
       </div>
-      <div class="td"><span class="chg ${volC}">${s.volRatio.toFixed(1)}x</span></div>
+      <div class="td">
+        <div style="display:flex;flex-direction:column;gap:2px;align-items:flex-end">
+          <span class="chg ${volC}">${s.volRatio.toFixed(1)}x</span>
+          <span style="font-size:.5rem;color:${s.vpLabel&&s.vpLabel.includes('VAL')?'var(--acc)':s.vpLabel&&s.vpLabel.includes('POC')?'var(--corr)':'var(--muted)'}">${s.vpLabel||'—'}</span>
+        </div>
+      </div>
       <div class="td">
         <div class="score-wrap">
           <div class="score-bg"><div class="score-fg" style="width:${s.score}%"></div></div>
@@ -568,35 +574,67 @@ function openDrawer(idx) {
       </div>`;
     }).join('');
 
+  const sb = s.scoreBreakdown || {};
+  const factors = [
+    { label: 'NARRATIVE MATCH', val: sb.narrative||0, desc: narCount >= 2 ? 'Same ecosystem' : narCount===1 ? 'Related use-case' : 'Broad sector only', color: 'var(--sector)' },
+    { label: 'CAP TIER MATCH',  val: sb.capTier||0,   desc: `Leader tier ${capTier(s.leader)} → Target tier ${s.capTierVal||'?'}`, color: 'var(--corr)' },
+    { label: 'MOMENTUM STATE',  val: sb.momentum||0,  desc: `24h: ${s.change24h>0?'+':''}${(s.change24h||0).toFixed(1)}% | 4h: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`, color: 'var(--vol)' },
+    { label: 'VOL DRYNESS',     val: sb.volDry||0,    desc: `Current vol ratio: ${s.volRatio}x`, color: 'var(--acc2)' },
+    { label: 'VP LEVEL',        val: sb.vpLevel||0,   desc: s.vpLabel || '—', color: 'var(--acc)' },
+    { label: '4H TREND',        val: sb.trend||0,     desc: `4h change: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`, color: '#CF9FFF' },
+  ];
+
+  const factorBars = factors.map(f => `
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:.54rem;">
+        <span style="color:var(--muted);letter-spacing:.1em">${f.label}</span>
+        <span style="color:${f.color};font-weight:700">${f.val}%</span>
+      </div>
+      <div style="height:5px;background:var(--border2);position:relative;">
+        <div style="height:100%;width:${f.val}%;background:${f.color};transition:width .6s ease;"></div>
+      </div>
+      <div style="font-size:.5rem;color:var(--muted2)">${f.desc}</div>
+    </div>
+  `).join('');
+
+  const vpSection = s.vp ? `
+    <div class="d-section">
+      <div class="d-section-title">VP LEVELS (1H)</div>
+      <div class="d-row"><span class="d-lbl">VAH</span><span class="d-val" style="color:var(--dn)">$${fp(s.vp.vah)}</span></div>
+      <div class="d-row"><span class="d-lbl">POC</span><span class="d-val" style="color:var(--corr)">$${fp(s.vp.poc)}</span></div>
+      <div class="d-row"><span class="d-lbl">VAL</span><span class="d-val" style="color:var(--acc)">$${fp(s.vp.val)}</span></div>
+      <div class="d-row"><span class="d-lbl">PRICE vs LEVELS</span><span class="d-val" style="color:var(--acc2)">${s.vpLabel}</span></div>
+      <div class="d-row"><span class="d-lbl">DIST TO VAL</span><span class="d-val">${((s.price - s.vp.val)/s.vp.val*100).toFixed(2)}%</span></div>
+    </div>` : '';
+
   document.getElementById('drawerBody').innerHTML = `
     <div class="d-section">
-      <div class="d-section-title">SIGNAL OVERVIEW</div>
+      <div class="d-section-title">SIGNAL</div>
       <div class="d-narrative">${s.narrative}</div>
-      <div class="d-narrative" style="border-left-color:var(--sector);margin-top:6px;font-size:.58rem;color:var(--muted)">${typeDesc}</div>
     </div>
 
     <div class="d-section">
-      <div class="d-section-title">SIGNAL STRENGTH</div>
-      <div class="d-meter-wrap">
-        <div class="d-meter-lbl"><span>ROTATION PROBABILITY</span><span style="color:var(--acc)">${s.score}%</span></div>
-        <div class="d-meter-bg"><div class="d-meter-fg" style="width:0%" id="drawerMeter"></div></div>
-      </div>
+      <div class="d-section-title">6-FACTOR SCORE — ${s.score}%</div>
+      ${factorBars}
     </div>
 
     <div class="d-section">
       <div class="d-section-title">TARGET: ${s.symbol}</div>
       <div class="d-row"><span class="d-lbl">PRICE</span><span class="d-val">$${fp(s.price)}</span></div>
-      <div class="d-row"><span class="d-lbl">1H CHANGE</span><span class="d-val ${own1h.cls}">${own1h.str}</span></div>
-      <div class="d-row"><span class="d-lbl">4H CHANGE</span><span class="d-val ${own4h.cls}">${own4h.str}</span></div>
+      <div class="d-row"><span class="d-lbl">1H</span><span class="d-val ${fpc(s.ownChange1h).cls}">${fpc(s.ownChange1h).str}</span></div>
+      <div class="d-row"><span class="d-lbl">4H</span><span class="d-val ${fpc(s.ownChange4h).cls}">${fpc(s.ownChange4h).str}</span></div>
+      <div class="d-row"><span class="d-lbl">24H</span><span class="d-val ${fpc(s.change24h||0).cls}">${fpc(s.change24h||0).str}</span></div>
       <div class="d-row"><span class="d-lbl">VOL RATIO</span><span class="d-val">${s.volRatio}x ${s.volDry ? '🌵 DRY' : ''}</span></div>
-      <div class="d-row"><span class="d-lbl">SECTOR</span><span class="d-val">${s.sector}</span></div>
+      <div class="d-row"><span class="d-lbl">CAP TIER</span><span class="d-val">${['','MEGA','LARGE','MID','SMALL','MICRO'][s.capTierVal||3]}</span></div>
     </div>
+
+    ${vpSection}
 
     <div class="d-section">
       <div class="d-section-title">LEADER: ${s.leader}</div>
       <div class="d-row"><span class="d-lbl">1H GAIN</span><span class="d-val up">+${s.leaderGain.toFixed(2)}%</span></div>
-      <div class="d-row"><span class="d-lbl">LAG (TARGET vs LEADER)</span><span class="d-val" style="color:var(--warn)">${s.lag.toFixed(2)}%</span></div>
-      ${s.leaderVol ? `<div class="d-row"><span class="d-lbl">LEADER VOL SPIKE</span><span class="d-val up">${s.leaderVol}x</span></div>` : ''}
+      <div class="d-row"><span class="d-lbl">LAG</span><span class="d-val" style="color:var(--warn)">${s.lag.toFixed(2)}%</span></div>
+      ${s.leaderVol ? `<div class="d-row"><span class="d-lbl">LEADER VOL</span><span class="d-val up">${s.leaderVol}x</span></div>` : ''}
     </div>
 
     ${peerRows ? `<div class="d-section"><div class="d-section-title">SECTOR PEERS — ${s.sector}</div><div class="peer-list">${peerRows}</div></div>` : ''}
