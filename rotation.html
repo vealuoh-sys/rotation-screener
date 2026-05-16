@@ -7,12 +7,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg:#03080D; --s1:#080F18; --s2:#0C1A28; --s3:#0F2133;
-  --border:#132435; --border2:#1E3A55;
+  --bg:#0A1628; --s1:#0F2040; --s2:#152850; --s3:#1A3060;
+  --border:#1E3A66; --border2:#2A5080;
   --acc:#00FFB2; --acc2:#00BFFF; --warn:#FFB800;
-  --up:#00FFB2; --dn:#FF5E3A; --neu:#3A6880;
-  --sector:#BF5FFF; --corr:#FFD700; --vol:#FF9500;
-  --text:#B8D4E8; --muted:#3A6880; --muted2:#2A4D65;
+  --up:#00FFB2; --dn:#FF5E3A; --neu:#6A9AB0;
+  --sector:#CF8FFF; --corr:#FFE066; --vol:#FFB040;
+  --text:#C8E0F4; --muted:#6A9AB0; --muted2:#3A6080;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:'Space Mono',monospace;min-height:100vh;overflow-x:hidden;}
@@ -527,6 +527,42 @@ function renderFlowChart(entries) {
   ctx.setLineDash([]);
 }
 
+// ── Client VP label helper ────────────────────────────────────────────────────
+function vpLabelClient(price, vp) {
+  if (!vp) return '—';
+  const dVAL = Math.abs(price - vp.val) / vp.val * 100;
+  const dPOC = Math.abs(price - vp.poc) / vp.poc * 100;
+  const dVAH = Math.abs(price - vp.vah) / vp.vah * 100;
+  if (price < vp.val * 0.98)  return 'BELOW VAL ⚠';
+  if (dVAL <= 2.0) return 'AT VAL 🎯';
+  if (dPOC <= 2.0) return 'AT POC ◆';
+  if (dVAH <= 1.5) return 'AT VAH 🔴';
+  if (price >= vp.val && price <= vp.vah) return 'IN VALUE';
+  return 'ABOVE VAH';
+}
+
+// ── Client-side cap tier (mirrors server) ─────────────────────────────────────
+const CAP_TIER_CLIENT = {
+  BTCUSDT:1,ETHUSDT:1,BNBUSDT:1,SOLUSDT:1,XRPUSDT:1,
+  ADAUSDT:2,AVAXUSDT:2,DOGEUSDT:2,DOTUSDT:2,TRXUSDT:2,
+  TONUSDT:2,MATICUSDT:2,LTCUSDT:2,LINKUSDT:2,UNIUSDT:2,
+  NEARUSDT:3,APTUSDT:3,ARBUSDT:3,OPUSDT:3,ATOMUSDT:3,
+  HBARUSDT:3,ICPUSDT:3,FILUSDT:3,INJUSDT:3,IMXUSDT:3,
+  AAVEUSDT:3,TIAUSDT:3,RUNEUSDT:3,SUIUSDT:3,WLDUSDT:3,
+  FTMUSDT:3,ALGOUSDT:3,EGLDUSDT:3,FLOWUSDT:3,KAVAUSDT:3,
+  FETUSDT:4,GRTUSDT:4,SUSHIUSDT:4,DYDXUSDT:4,GMXUSDT:4,
+  CRVUSDT:4,MKRUSDT:4,CAKEUSDT:4,SANDUSDT:4,MANAUSDT:4,
+  AXSUSDT:4,SNXUSDT:4,COMPUSDT:4,LDOUSDT:4,ENSUSDT:4,
+  STXUSDT:4,GALAUSDT:4,APEUSDT:4,GMTUSDT:4,AGIXUSDT:4,
+  RNDRUSDT:4,YFIUSDT:4,BALUSDT:4,NTRNUSDT:5,SKLUSDT:5,
+  METISUSDT:5,LRCUSDT:5,AKTUSDT:5,ILVUSDT:5,SLPUSDT:5,
+  BONKUSDT:4,WIFUSDT:4,SHIBUSDT:3,PEPEUSDT:3,FLOKIUSDT:4,
+  XLMUSDT:3,VETUSDT:4,BCHUSDT:3,XMRUSDT:3,ZECUSDT:4,
+  DASHUSDT:4,NANOUSDT:5,DGBUSDT:5,QNTUSDT:4,
+};
+function capTierClient(sym) { return CAP_TIER_CLIENT[sym] || 3; }
+const CAP_TIER_LABELS = ['','MEGA','LARGE','MID','SMALL','MICRO'];
+
 // ── Drawer ────────────────────────────────────────────────────────────────────
 function openDrawer(idx) {
   const filtered = allSignals.filter(s => activeTypes.has(s.type) && s.score >= minScore);
@@ -535,120 +571,118 @@ function openDrawer(idx) {
 
   document.getElementById('drawerTitle').textContent = s.symbol.replace('USDT','') + ' — ' + s.type;
 
-  const m       = allMetrics[s.symbol] || {};
-  const ml      = allMetrics[s.leader] || {};
-  const own1h   = fpc(s.ownChange1h);
-  const own4h   = fpc(s.ownChange4h || 0);
-  const lead1h  = fpc(s.leaderGain);
-  const typeDesc= {
-    SECTOR: 'A coin in the same sector pumped. Capital historically rotates to laggards within 1–4 hours.',
-    CORR:   'Two historically correlated coins have diverged. The laggard tends to mean-revert upward.',
-    VOLFLOW:'A sector peer absorbed a major volume spike. No volume on this coin yet — dry powder.',
-  }[s.type] || '';
-
-  // Sector peers
-  const SECTORS_MAP = {
-    L1_MAJOR:['BTCUSDT','ETHUSDT','SOLUSDT','AVAXUSDT','DOTUSDT'],
-    L1_ALT:['NEARUSDT','APTUSDT','SUIUSDT','ALGOUSDT','EGLDUSDT'],
-    L2:['MATICUSDT','ARBUSDT','OPUSDT','IMXUSDT','STXUSDT'],
-    DEFI:['UNIUSDT','AAVEUSDT','CRVUSDT','MKRUSDT','SNXUSDT','COMPUSDT','SUSHIUSDT','DYDXUSDT','GMXUSDT','CAKEUSDT'],
-    AI_DATA:['FETUSDT','GRTUSDT','INJUSDT'],
-    GAMING:['AXSUSDT','SANDUSDT','MANAUSDT','GALAUSDT','GMTUSDT','APEUSDT'],
-    INFRA:['LINKUSDT','ATOMUSDT','FILUSDT','LDOUSDT','ENSUSDT'],
-    PAYMENTS:['XRPUSDT','XLMUSDT','LTCUSDT','VETUSDT'],
-    LARGE_CAP:['BNBUSDT','ADAUSDT','DOGEUSDT'],
-    COSMOS:['ATOMUSDT','TIAUSDT','RUNEUSDT'],
-  };
-  const peerSyms = SECTORS_MAP[s.sector] || [];
-  const peerRows = peerSyms
+  // Sector peers — use full expanded list from allMetrics
+  const sectorCoins = Object.keys(allMetrics).filter(sym => {
+    // find coins in same sector by checking if they appear in any signal with same sector
+    return allSignals.some(sig => sig.sector === s.sector && (sig.symbol === sym || sig.leader === sym));
+  });
+  // Also always include the leader and target
+  const peerSet = new Set([...sectorCoins, s.symbol, s.leader]);
+  const peerRows = [...peerSet]
     .filter(sym => allMetrics[sym])
     .sort((a,b) => (allMetrics[b].change1h||0) - (allMetrics[a].change1h||0))
+    .slice(0, 12)
     .map(sym => {
       const mm  = allMetrics[sym];
       const chg = fpc(mm.change1h || 0);
       const cls = sym === s.symbol ? 'is-target' : sym === s.leader ? 'is-leader' : '';
       const tag = sym === s.symbol ? ' ← TARGET' : sym === s.leader ? ' ← LEADER' : '';
+      const vpL = mm.vp ? vpLabelClient(mm.price, mm.vp) : '';
       return `<div class="peer-row ${cls}">
-        <span class="peer-sym">${sym.replace('USDT','')}</span>
+        <div style="display:flex;flex-direction:column;gap:1px">
+          <span class="peer-sym">${sym.replace('USDT','')}</span>
+          <span style="font-size:.46rem;color:var(--muted2)">${vpL}</span>
+        </div>
         <span class="peer-change ${chg.cls}">${chg.str}${tag}</span>
       </div>`;
     }).join('');
 
-  const sb = s.scoreBreakdown || {};
+  const sb       = s.scoreBreakdown || {};
+  const narCount = s.narCount || 0;
+  const capTV    = s.capTierVal || capTierClient(s.symbol);
+  const capLV    = s.leader ? capTierClient(s.leader) : 3;
+
   const factors = [
-    { label: 'NARRATIVE MATCH', val: sb.narrative||0, desc: narCount >= 2 ? 'Same ecosystem' : narCount===1 ? 'Related use-case' : 'Broad sector only', color: 'var(--sector)' },
-    { label: 'CAP TIER MATCH',  val: sb.capTier||0,   desc: `Leader tier ${capTier(s.leader)} → Target tier ${s.capTierVal||'?'}`, color: 'var(--corr)' },
-    { label: 'MOMENTUM STATE',  val: sb.momentum||0,  desc: `24h: ${s.change24h>0?'+':''}${(s.change24h||0).toFixed(1)}% | 4h: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`, color: 'var(--vol)' },
-    { label: 'VOL DRYNESS',     val: sb.volDry||0,    desc: `Current vol ratio: ${s.volRatio}x`, color: 'var(--acc2)' },
-    { label: 'VP LEVEL',        val: sb.vpLevel||0,   desc: s.vpLabel || '—', color: 'var(--acc)' },
-    { label: '4H TREND',        val: sb.trend||0,     desc: `4h change: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`, color: '#CF9FFF' },
+    { label:'NARRATIVE MATCH', val:sb.narrative||0,
+      desc: narCount>=2 ? '🔥 Same ecosystem' : narCount===1 ? '✓ Related use-case' : '○ Broad sector only',
+      color:'var(--sector)' },
+    { label:'CAP TIER MATCH',  val:sb.capTier||0,
+      desc:`Leader: ${CAP_TIER_LABELS[capLV]||'MID'} → Target: ${CAP_TIER_LABELS[capTV]||'MID'}`,
+      color:'var(--corr)' },
+    { label:'MOMENTUM STATE',  val:sb.momentum||0,
+      desc:`24h: ${(s.change24h||0)>0?'+':''}${(s.change24h||0).toFixed(1)}% | 4h: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`,
+      color:'var(--vol)' },
+    { label:'VOL DRYNESS',     val:sb.volDry||0,
+      desc:`Vol ratio: ${s.volRatio}x ${s.volRatio<1.2?'— dry powder 🌵':''}`,
+      color:'var(--acc2)' },
+    { label:'VP LEVEL',        val:sb.vpLevel||0,
+      desc:s.vpLabel||'—',
+      color:'var(--acc)' },
+    { label:'4H TREND',        val:sb.trend||0,
+      desc:`4h: ${s.ownChange4h>0?'+':''}${s.ownChange4h.toFixed(1)}%`,
+      color:'#CF9FFF' },
   ];
 
   const factorBars = factors.map(f => `
-    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:10px;">
-      <div style="display:flex;justify-content:space-between;font-size:.54rem;">
+    <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;font-size:.56rem;">
         <span style="color:var(--muted);letter-spacing:.1em">${f.label}</span>
         <span style="color:${f.color};font-weight:700">${f.val}%</span>
       </div>
-      <div style="height:5px;background:var(--border2);position:relative;">
-        <div style="height:100%;width:${f.val}%;background:${f.color};transition:width .6s ease;"></div>
+      <div style="height:6px;background:var(--border);border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${f.val}%;background:${f.color};border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1)"></div>
       </div>
-      <div style="font-size:.5rem;color:var(--muted2)">${f.desc}</div>
+      <div style="font-size:.52rem;color:var(--muted2)">${f.desc}</div>
     </div>
   `).join('');
 
   const vpSection = s.vp ? `
     <div class="d-section">
-      <div class="d-section-title">VP LEVELS (1H)</div>
-      <div class="d-row"><span class="d-lbl">VAH</span><span class="d-val" style="color:var(--dn)">$${fp(s.vp.vah)}</span></div>
-      <div class="d-row"><span class="d-lbl">POC</span><span class="d-val" style="color:var(--corr)">$${fp(s.vp.poc)}</span></div>
-      <div class="d-row"><span class="d-lbl">VAL</span><span class="d-val" style="color:var(--acc)">$${fp(s.vp.val)}</span></div>
-      <div class="d-row"><span class="d-lbl">PRICE vs LEVELS</span><span class="d-val" style="color:var(--acc2)">${s.vpLabel}</span></div>
-      <div class="d-row"><span class="d-lbl">DIST TO VAL</span><span class="d-val">${((s.price - s.vp.val)/s.vp.val*100).toFixed(2)}%</span></div>
+      <div class="d-section-title">📊 VP LEVELS (1H)</div>
+      <div class="d-row"><span class="d-lbl">VAH (Resistance)</span><span class="d-val" style="color:var(--dn)">$${fp(s.vp.vah)}</span></div>
+      <div class="d-row"><span class="d-lbl">POC (Magnet)</span><span class="d-val" style="color:var(--corr)">$${fp(s.vp.poc)}</span></div>
+      <div class="d-row"><span class="d-lbl">VAL (Support)</span><span class="d-val" style="color:var(--acc)">$${fp(s.vp.val)}</span></div>
+      <div class="d-row"><span class="d-lbl">PRICE POSITION</span><span class="d-val" style="color:var(--acc2)">${s.vpLabel||'—'}</span></div>
+      <div class="d-row"><span class="d-lbl">DIST TO VAL</span><span class="d-val">${((s.price-s.vp.val)/s.vp.val*100).toFixed(2)}%</span></div>
     </div>` : '';
 
   document.getElementById('drawerBody').innerHTML = `
     <div class="d-section">
-      <div class="d-section-title">SIGNAL</div>
+      <div class="d-section-title">📝 SIGNAL</div>
       <div class="d-narrative">${s.narrative}</div>
     </div>
 
     <div class="d-section">
-      <div class="d-section-title">6-FACTOR SCORE — ${s.score}%</div>
+      <div class="d-section-title">💪 6-FACTOR SCORE — ${s.score}%</div>
       ${factorBars}
     </div>
 
     <div class="d-section">
-      <div class="d-section-title">TARGET: ${s.symbol}</div>
+      <div class="d-section-title">🎯 TARGET: ${s.symbol.replace('USDT','')}</div>
       <div class="d-row"><span class="d-lbl">PRICE</span><span class="d-val">$${fp(s.price)}</span></div>
-      <div class="d-row"><span class="d-lbl">1H</span><span class="d-val ${fpc(s.ownChange1h).cls}">${fpc(s.ownChange1h).str}</span></div>
-      <div class="d-row"><span class="d-lbl">4H</span><span class="d-val ${fpc(s.ownChange4h).cls}">${fpc(s.ownChange4h).str}</span></div>
-      <div class="d-row"><span class="d-lbl">24H</span><span class="d-val ${fpc(s.change24h||0).cls}">${fpc(s.change24h||0).str}</span></div>
-      <div class="d-row"><span class="d-lbl">VOL RATIO</span><span class="d-val">${s.volRatio}x ${s.volDry ? '🌵 DRY' : ''}</span></div>
-      <div class="d-row"><span class="d-lbl">CAP TIER</span><span class="d-val">${['','MEGA','LARGE','MID','SMALL','MICRO'][s.capTierVal||3]}</span></div>
+      <div class="d-row"><span class="d-lbl">1H CHANGE</span><span class="d-val ${fpc(s.ownChange1h).cls}">${fpc(s.ownChange1h).str}</span></div>
+      <div class="d-row"><span class="d-lbl">4H CHANGE</span><span class="d-val ${fpc(s.ownChange4h).cls}">${fpc(s.ownChange4h).str}</span></div>
+      <div class="d-row"><span class="d-lbl">24H CHANGE</span><span class="d-val ${fpc(s.change24h||0).cls}">${fpc(s.change24h||0).str}</span></div>
+      <div class="d-row"><span class="d-lbl">VOL RATIO</span><span class="d-val">${s.volRatio}x ${s.volDry?'🌵 DRY':''}</span></div>
+      <div class="d-row"><span class="d-lbl">CAP TIER</span><span class="d-val">${CAP_TIER_LABELS[capTV]||'MID'}</span></div>
+      <div class="d-row"><span class="d-lbl">SECTOR</span><span class="d-val">${s.sector}</span></div>
     </div>
 
     ${vpSection}
 
     <div class="d-section">
-      <div class="d-section-title">LEADER: ${s.leader}</div>
+      <div class="d-section-title">🚀 LEADER: ${s.leader.replace('USDT','')}</div>
       <div class="d-row"><span class="d-lbl">1H GAIN</span><span class="d-val up">+${s.leaderGain.toFixed(2)}%</span></div>
-      <div class="d-row"><span class="d-lbl">LAG</span><span class="d-val" style="color:var(--warn)">${s.lag.toFixed(2)}%</span></div>
-      ${s.leaderVol ? `<div class="d-row"><span class="d-lbl">LEADER VOL</span><span class="d-val up">${s.leaderVol}x</span></div>` : ''}
+      <div class="d-row"><span class="d-lbl">LAG BEHIND</span><span class="d-val" style="color:var(--warn)">${s.lag.toFixed(2)}%</span></div>
+      <div class="d-row"><span class="d-lbl">CAP TIER</span><span class="d-val">${CAP_TIER_LABELS[capLV]||'MID'}</span></div>
+      ${s.leaderVol?`<div class="d-row"><span class="d-lbl">LEADER VOL</span><span class="d-val up">${s.leaderVol}x</span></div>`:''}
     </div>
 
-    ${peerRows ? `<div class="d-section"><div class="d-section-title">SECTOR PEERS — ${s.sector}</div><div class="peer-list">${peerRows}</div></div>` : ''}
+    ${peerRows?`<div class="d-section"><div class="d-section-title">🏷 SECTOR PEERS — ${s.sector}</div><div class="peer-list">${peerRows}</div></div>`:''}
   `;
 
-  // Open
   document.getElementById('drawer').classList.add('open');
   document.getElementById('overlay').classList.add('open');
-
-  // Animate meter after open
-  setTimeout(() => {
-    const meter = document.getElementById('drawerMeter');
-    if (meter) meter.style.width = s.score + '%';
-  }, 120);
 }
 
 function closeDrawer() {
