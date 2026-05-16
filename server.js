@@ -598,8 +598,29 @@ function makeSignal(type, symbol, leader, lag, metrics, sectors, regime, futures
     ...scored,
     ...extra
   };
+// Reject tiny rotation gaps. A 0.3% lag is usually market noise.
+const minLagByTier = {
+  1: 0.5,  // BTC, ETH, BNB, SOL, XRP
+  2: 0.8,  // large caps
+  3: 1.2,  // mid caps
+  4: 1.8,  // small caps
+  5: 2.5   // micro / meme style moves
+};
 
-  s.setup = setupLabel(s);
+const requiredLag = minLagByTier[s.capTierVal] || 1.2;
+
+if (s.lag < requiredLag) {
+  s.score = Math.max(0, s.score - 35);
+  s.grade = "D";
+  s.setup = "TINY EDGE / IGNORE";
+  s.tinyEdge = true;
+} else if (s.lag < requiredLag * 1.25) {
+  s.score = Math.max(0, s.score - 15);
+  s.grade = grade(s.score);
+  s.setup = "SMALL EDGE / WATCH ONLY";
+  s.tinyEdge = true;
+}
+  if (!s.tinyEdge) s.setup = setupLabel(s);
   return s;
 }
 
