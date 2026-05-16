@@ -753,13 +753,47 @@ async function runScan() {
   const all        = [...sectorSigs, ...corrSigs, ...volSigs]
     .sort((a, b) => b.score - a.score);
 
-  // Dedup: if same symbol appears multiple times, keep highest score per type
-  const seen = new Map();
-  const deduped = [];
+  // ── Smart dedup: one row per symbol ─────────────────────────────────────────
+  // When multiple signal types fire on the same coin (e.g. FET fires as
+  // SECTOR + CORR + VOLFLOW), we keep only the highest-score entry but:
+  //   1. Add a +10 "multi-confirmed" bonus to the score
+  //   2. Store all confirmed signal types so the UI can show a badge
+  //   3. Merge the narratives so nothing is lost
+
+  // Step 1: group all signals by symbol
+  const bySymbol = new Map();
   for (const s of all) {
-    const key = `${s.type}-${s.symbol}`;
-    if (!seen.has(key)) { seen.set(key, true); deduped.push(s); }
+    if (!bySymbol.has(s.symbol)) bySymbol.set(s.symbol, []);
+    bySymbol.get(s.symbol).push(s);
   }
+
+  // Step 2: for each symbol pick the best signal, merge info
+  const deduped = [];
+  for (const [sym, sigs] of bySymbol) {
+    // Sort by score desc — best signal is first
+    sigs.sort((a, b) => b.score - a.score);
+    const best       = { ...sigs[0] };
+    const allTypes   = [...new Set(sigs.map(s => s.type))];
+    const confirmed  = allTypes.length > 1; // fired on 2+ signal types
+
+    // Bonus for multi-confirmation — rare and meaningful
+    if (confirmed) best.score = Math.min(100, best.score + 10);
+
+    // Store all confirmed types and their individual scores
+    best.confirmedTypes = allTypes;
+    best.confirmed      = confirmed;
+    best.allNarratives  = sigs.map(s => `[${s.type}] ${s.narrative}`);
+
+    // Update narrative to mention multi-confirmation
+    if (confirmed) {
+      best.narrative = `⚡ MULTI-CONFIRMED (${allTypes.join('+')}): ${best.narrative}`;
+    }
+
+    deduped.push(best);
+  }
+
+  // Sort final list by score
+  deduped.sort((a, b) => b.score - a.score);
 
   // Alert top signals
   deduped.slice(0, 10).forEach(s => alertSignal(s));
