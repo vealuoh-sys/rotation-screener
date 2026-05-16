@@ -215,36 +215,310 @@ async function fetchKlines(symbol, interval, limit = 50) {
   }));
 }
 
+// ── Sub-narrative tags ────────────────────────────────────────────────────────
+// Coins that share a sub-narrative get a bonus when one pumps.
+// e.g. NTRN pumps → ATOM/TIA/OSMO are closer than MATIC/ARB.
+const SUB_NARRATIVE = {
+  // Cosmos ecosystem
+  COSMOS_ECO: ['ATOMUSDT','TIAUSDT','INJUSDT','AKTUSDT','OSMOУСDT','STRDUSDT','NTRNUSDT','EVMOSUSDT'],
+  // Ethereum L2
+  ETH_L2:     ['MATICUSDT','ARBUSDT','OPUSDT','METISUSDT','SKLUSDT','LRCUSDT','IMXUSDT','SCROLLUSDT'],
+  // Bitcoin L2 / BTC ecosystem
+  BTC_ECO:    ['STXUSDT','LDOUSDT','NTRNUSDT'],
+  // Solana ecosystem
+  SOL_ECO:    ['SOLUSDT','RAYUSDT','ORCAUSDT','BONKUSDT','WIFUSDT'],
+  // AI / compute
+  AI_COMPUTE: ['FETUSDT','AGIXUSDT','RNDRUSDT','OCEANUSDT','WLDUSDT','GRTUSDT','NMRUSDT'],
+  // GameFi play-to-earn
+  GAMEFI:     ['AXSUSDT','ILVUSDT','SLPUSDT','YGGUSDT','GALAUSDT','MBOXUSDT','ALICEUSDT'],
+  // Metaverse / virtual worlds
+  METAVERSE:  ['SANDUSDT','MANAUSDT','APEUSDT','GMTUSDT'],
+  // DEX / AMM
+  DEX:        ['UNIUSDT','SUSHIUSDT','CRVUSDT','BALUSDT','1INCHUSDT','CAKEUSDT'],
+  // Lending / money markets
+  LENDING:    ['AAVEUSDT','COMPUSDT','MKRUSDT','SNXUSDT','KNCUSDT'],
+  // Perps / derivatives
+  PERPS:      ['DYDXUSDT','GMXUSDT','SNXUSDT','PERPUSDT'],
+  // Meme OG
+  MEME_OG:    ['DOGEUSDT','SHIBUSDT'],
+  // Meme new wave
+  MEME_NEW:   ['PEPEUSDT','FLOKIUSDT','BONKUSDT','WIFUSDT','MEMEUSDT','TURBOUSDT'],
+  // Payment / remittance
+  REMITTANCE: ['XRPUSDT','XLMUSDT','NANOUSDT','QNTUSDT'],
+  // Privacy
+  PRIVACY:    ['XMRUSDT','ZECUSDT','DASHUSDT','ROSEUSDT'],
+  // PoW legacy
+  POW:        ['LTCUSDT','BCHUSDT','DASHUSDT','ZECUSDT','DGBUSDT'],
+  // Oracle
+  ORACLE:     ['LINKUSDT','BANDUSDT'],
+  // Storage / data
+  STORAGE:    ['FILUSDT','STORJUSDT','SCUSDT','OCEANUSDT'],
+};
+
+// Build reverse lookup: symbol → [sub-narratives]
+const SYM_NARRATIVES = {};
+Object.entries(SUB_NARRATIVE).forEach(([nar, coins]) => {
+  coins.forEach(sym => {
+    if (!SYM_NARRATIVES[sym]) SYM_NARRATIVES[sym] = [];
+    SYM_NARRATIVES[sym].push(nar);
+  });
+});
+
+// Shared narrative count between two symbols
+function sharedNarratives(symA, symB) {
+  const a = SYM_NARRATIVES[symA] || [];
+  const b = SYM_NARRATIVES[symB] || [];
+  return a.filter(n => b.includes(n)).length;
+}
+
+// ── Market cap tiers ──────────────────────────────────────────────────────────
+// Rough tiers based on typical market cap. Money from small cap tends to
+// rotate to small/mid cap first, not straight to mega cap.
+// 1=mega  2=large  3=mid  4=small  5=micro
+const CAP_TIER = {
+  BTCUSDT:1, ETHUSDT:1, BNBUSDT:1, SOLUSDT:1, XRPUSDT:1,
+  ADAUSDT:2, AVAXUSDT:2, DOGEUSDT:2, DOTUSDT:2, TRXUSDT:2,
+  TONUSDT:2, MATICUSDT:2, LTCUSDT:2, LINKUSDT:2, UNIUSDT:2,
+  NEARUSDT:3, APTUSDT:3, ARBUSDT:3, OPUSDT:3, ATOMUSDT:3,
+  HBARUSDT:3, ICPUSDT:3, FILUSDT:3, INJUSDT:3, IMXUSDT:3,
+  AAVEUSDT:3, TIAUSDT:3, RUNEUSDT:3, SUIUSDT:3, WLDUSDT:3,
+  FTMUSDT:3, ALGOUSDT:3, EGLDUSDT:3, FLOWUSDT:3, KAVAUSDT:3,
+  FETUSDT:4, GRTUSDT:4, SUSHIUSDT:4, DYDXUSDT:4, GMXUSDT:4,
+  CRVUSDT:4, MKRUSDT:4, CAKEUSDT:4, SANDUSDT:4, MANAUSDT:4,
+  AXSUSDT:4, SNXUSDT:4, COMPUSDT:4, LDOUSDT:4, ENSUSDT:4,
+  STXUSDT:4, GALAUSDT:4, APEUSDT:4, GMTUSDT:4, AGIXUSDT:4,
+  RNDRUSDT:4, YFIUSDT:4, BALUSDT:4, NTRNUSDT:5, SKLUSDT:5,
+  METISUSDT:5, LRCUSDT:5, AKTUSDT:5, ILVUSDT:5, SLPUSDT:5,
+  YGGUSDT:5, MBOXUSDT:5, ALICEUSDT:5, TLMUSDT:5, RAREUSDT:5,
+  STORJUSDT:5, SCUSDT:5, AKROUSDT:5, NKNUSDT:5, IOTAUSDT:5,
+  NANOUSDT:5, DGBUSDT:5, DCRUSDT:4, QNTUSDT:4, ZILUSDT:5,
+  ONEUSDT:5, MINAUSDT:4, XTZUSDT:4, EOSUSDT:4, THETAUSDT:4,
+  XMRUSDT:3, ZECUSDT:4, DASHUSDT:4, BCHUSDT:3, XLMUSDT:3,
+  VETUSDT:4, SHIBUSDT:3, PEPEUSDT:3, FLOKIUSDT:4, BONKUSDT:4,
+  WIFUSDT:4, MEMEUSDT:5, TURBOUSDT:5, OCEANUSDT:4, NMRUSDT:5,
+  PHAUSDT:5, COTIUSDT:5, ACHUSDT:5, REQUSDT:5, RLCUSDT:5,
+  BANDUSDT:4, KNCUSDT:4, XVSUSDT:5, EVMOSUSDT:5, STRDUSDT:5,
+  SUPERUSDT:5, XCNUSDT:5, SCROLLUSDT:5,
+};
+
+function capTier(sym) { return CAP_TIER[sym] || 3; }
+
+// Cap tier similarity score: same tier=100, 1 apart=60, 2 apart=20, 3+=0
+function capTierScore(symA, symB) {
+  const diff = Math.abs(capTier(symA) - capTier(symB));
+  return [100, 60, 20, 0, 0][diff] || 0;
+}
+
+// ── Volume Profile (VP) calculation ──────────────────────────────────────────
+// Calculates VAH, POC, VAL from 1h candles (same algorithm as VP screener).
+// This is the key bridge between the two tools.
+const VP_BINS = 36;
+
+function calcVP(candles) {
+  if (!candles || candles.length < 10) return null;
+  let lo = Infinity, hi = -Infinity;
+  candles.forEach(c => {
+    if (c.high  > hi) hi = c.high;
+    if (c.low   < lo) lo = c.low;
+  });
+  const range = hi - lo;
+  if (range === 0) return null;
+
+  const binSize = range / VP_BINS;
+  const vol     = new Array(VP_BINS).fill(0);
+  candles.forEach(c => {
+    const typical = (c.high + c.low + c.close) / 3;
+    const idx = Math.min(Math.floor((typical - lo) / binSize), VP_BINS - 1);
+    vol[idx] += c.volume;
+  });
+
+  let pocIdx = 0;
+  vol.forEach((v, i) => { if (v > vol[pocIdx]) pocIdx = i; });
+  const poc = lo + (pocIdx + 0.5) * binSize;
+
+  const totalVol = vol.reduce((a, b) => a + b, 0);
+  const target   = totalVol * 0.70;
+  let vaVol = vol[pocIdx], vaLo = pocIdx, vaHi = pocIdx;
+  while (vaVol < target) {
+    const nextLo = vaLo > 0         ? vol[vaLo - 1] : 0;
+    const nextHi = vaHi < VP_BINS-1 ? vol[vaHi + 1] : 0;
+    if (nextLo >= nextHi && vaLo > 0) { vaLo--; vaVol += nextLo; }
+    else if (vaHi < VP_BINS - 1)      { vaHi++; vaVol += nextHi; }
+    else break;
+  }
+  return {
+    poc,
+    vah: lo + (vaHi + 1) * binSize,
+    val: lo + vaLo * binSize,
+  };
+}
+
+// VP proximity score:
+// price at/near VAL  → BEST  (100) — sitting at support, ready to bounce
+// price near POC     → GOOD  (65)  — at equilibrium
+// price near VAH     → OK    (40)  — near resistance
+// price far from all → POOR  (15)
+// price below VAL    → BAD   (5)   — broken structure, avoid
+function vpProximityScore(price, vp) {
+  if (!vp) return 30; // no data, neutral
+  const distVAL = Math.abs(price - vp.val) / vp.val * 100; // % away from VAL
+  const distPOC = Math.abs(price - vp.poc) / vp.poc * 100;
+  const distVAH = Math.abs(price - vp.vah) / vp.vah * 100;
+
+  // Below VAL = broken structure
+  if (price < vp.val * 0.98) return 5;
+
+  // At VAL (within 0.8%) = best rotation entry
+  if (distVAL <= 0.8) return 100;
+  if (distVAL <= 2.0) return 85;
+
+  // At POC
+  if (distPOC <= 0.8) return 65;
+  if (distPOC <= 2.0) return 50;
+
+  // At VAH — near resistance, not ideal entry
+  if (distVAH <= 1.0) return 40;
+
+  // Inside value area but not near a level
+  if (price >= vp.val && price <= vp.vah) return 35;
+
+  return 15;
+}
+
+// VP level label for display
+function vpLevelLabel(price, vp) {
+  if (!vp) return '—';
+  const distVAL = Math.abs(price - vp.val) / vp.val * 100;
+  const distPOC = Math.abs(price - vp.poc) / vp.poc * 100;
+  const distVAH = Math.abs(price - vp.vah) / vp.vah * 100;
+  if (price < vp.val * 0.98)  return 'BELOW VAL ⚠';
+  if (distVAL <= 2.0) return `AT VAL 🎯`;
+  if (distPOC <= 2.0) return `AT POC ◆`;
+  if (distVAH <= 1.5) return `AT VAH 🔴`;
+  if (price >= vp.val && price <= vp.vah) return 'IN VALUE';
+  return 'ABOVE VAH';
+}
+
+// ── Momentum state ────────────────────────────────────────────────────────────
+// A coin that has been FLAT for 3 days and now has some 1h action is better
+// than one that already ran 20% — it has more "stored energy".
+// Returns score 0-100. Higher = more flat/coiled = better rotation candidate.
+function momentumStateScore(change1h, change4h, change24h) {
+  // Already ran hard on 24h → lower score (less upside remaining)
+  const ran24h = Math.abs(change24h);
+  const ran4h  = Math.abs(change4h);
+
+  let score = 70; // base
+
+  // Big 24h move already happened → penalise
+  if (ran24h > 15) score -= 40;
+  else if (ran24h > 8) score -= 20;
+  else if (ran24h > 4) score -= 8;
+  else score += 15; // very flat 24h = stored energy
+
+  // 4h flat but 1h starting to move = ideal
+  if (ran4h < 1.5 && Math.abs(change1h) > 0.2) score += 15;
+
+  // Already dumping on 4h = avoid
+  if (change4h < -4) score -= 25;
+
+  return Math.min(100, Math.max(0, score));
+}
+
+// ── THE MASTER SCORING ENGINE ─────────────────────────────────────────────────
+// Combines all 6 factors into one 0-100 score.
+//
+// Factor                    Weight   What it measures
+// ─────────────────────────────────────────────────────
+// 1. Sub-narrative match      25%    Same ecosystem/use-case as leader
+// 2. Cap tier similarity      20%    Money stays in same size bracket
+// 3. Momentum state           20%    How coiled/flat the coin is
+// 4. Volume dryness           15%    No volume yet = dry powder
+// 5. VP proximity             12%    Price near VAL/POC = structural support
+// 6. 4H trend not broken       8%    Not in active downtrend
+//
+function scoreCandidate(sym, leader, m, vp) {
+  // Factor 1: Sub-narrative (0-100)
+  const narCount  = sharedNarratives(sym, leader);
+  const narScore  = narCount >= 2 ? 100 : narCount === 1 ? 65 : 20;
+
+  // Factor 2: Cap tier similarity (0-100)
+  const capScore  = capTierScore(sym, leader);
+
+  // Factor 3: Momentum state (0-100)
+  const momScore  = momentumStateScore(m.change1h, m.change4h, m.change24h);
+
+  // Factor 4: Volume dryness (0-100)
+  const volScore  = m.volRatio < 0.8  ? 100  // very quiet
+                  : m.volRatio < 1.2  ? 80
+                  : m.volRatio < 1.8  ? 45
+                  : m.volRatio < 2.5  ? 20
+                  : 5;                        // already spiked
+
+  // Factor 5: VP proximity (0-100)
+  const vpScore   = vpProximityScore(m.price, vp);
+
+  // Factor 6: 4H trend health (0-100)
+  const trendScore = m.change4h > 1   ? 100  // rising
+                   : m.change4h > 0   ? 80
+                   : m.change4h > -2  ? 55
+                   : m.change4h > -5  ? 25
+                   : 0;                       // strong downtrend
+
+  // Weighted composite
+  const composite = (
+    narScore   * 0.25 +
+    capScore   * 0.20 +
+    momScore   * 0.20 +
+    volScore   * 0.15 +
+    vpScore    * 0.12 +
+    trendScore * 0.08
+  );
+
+  return {
+    score:       Math.round(composite),
+    scoreBreakdown: {
+      narrative:  Math.round(narScore),
+      capTier:    Math.round(capScore),
+      momentum:   Math.round(momScore),
+      volDry:     Math.round(volScore),
+      vpLevel:    Math.round(vpScore),
+      trend:      Math.round(trendScore),
+    },
+    vpLabel: vp ? vpLevelLabel(m.price, vp) : '—',
+    vp,
+    narCount,
+    capTierVal: capTier(sym),
+  };
+}
+
 // ── Coin metric calculation ────────────────────────────────────────────────────
-// Returns change%, volume ratio, and current price from 1h candles
 function calcMetrics(candles1h, candles4h, candles1d) {
   const last = candles1h[candles1h.length - 1];
 
-  // 1h change
   const open1h    = candles1h[candles1h.length - 2]?.close || candles1h[0].open;
   const change1h  = ((last.close - open1h) / open1h) * 100;
 
-  // 4h change
   const first4h   = candles4h[candles4h.length - 2]?.close || candles4h[0].open;
   const change4h  = ((last.close - first4h) / first4h) * 100;
 
-  // 24h change
   const first24h  = candles1d[candles1d.length - 2]?.close || candles1d[0].open;
   const change24h = ((last.close - first24h) / first24h) * 100;
 
-  // Volume ratio: current 1h vol vs 20-bar average
   const recentVols = candles1h.slice(-21, -1).map(c => c.volume);
   const avgVol     = recentVols.reduce((a, b) => a + b, 0) / recentVols.length;
   const volRatio   = avgVol > 0 ? last.volume / avgVol : 1;
+  const vol24h     = candles1h.slice(-24).reduce((a, c) => a + c.volume, 0);
 
-  // 24h rolling volume
-  const vol24h = candles1h.slice(-24).reduce((a, c) => a + c.volume, 0);
+  // VP uses the last 48 1h candles for a richer picture
+  const vp = calcVP(candles1h);
 
   return {
     price: last.close,
     change1h, change4h, change24h,
     volRatio, vol24h,
     lastVol: last.volume,
+    vp,  // ← VP levels stored on every coin
   };
 }
 
@@ -252,15 +526,14 @@ function calcMetrics(candles1h, candles4h, candles1d) {
 
 /**
  * SECTOR rotation: coin A pumped > threshold in 1h
- * → find sector peers with < half that gain (laggards)
- * → score by: lag magnitude + volume absence (dry powder)
+ * → find sector peers that are lagging
+ * → rank by 6-factor score (not just lag magnitude)
  */
 function detectSectorRotation(metrics) {
   const signals = [];
-  const PUMP_THRESHOLD = 2.5; // % gain in 1h to be considered "pumped"
+  const PUMP_THRESHOLD = 0.4;
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
-    // Find the pumped coin(s)
     const pumped = coins
       .filter(sym => metrics[sym] && metrics[sym].change1h >= PUMP_THRESHOLD)
       .sort((a, b) => metrics[b].change1h - metrics[a].change1h);
@@ -270,36 +543,39 @@ function detectSectorRotation(metrics) {
     const leader     = pumped[0];
     const leaderGain = metrics[leader].change1h;
 
-    // Find laggards: same sector, didn't pump yet, not also pumping
     coins.forEach(sym => {
-      if (!metrics[sym]) return;
-      if (sym === leader)            return;
+      if (!metrics[sym] || sym === leader) return;
       if (metrics[sym].change1h > leaderGain * 0.7) return; // already moved
 
-      const m     = metrics[sym];
-      const lag   = leaderGain - m.change1h;          // how far behind
-      const volDry= m.volRatio < 1.2;                  // no volume yet = dry powder
-      const score = Math.min(100, Math.round(
-        35 +                                           // base
-        Math.min(lag * 8, 35) +                        // lag magnitude bonus
-        (volDry ? 15 : 0) +                            // dry powder bonus
-        Math.min(leaderGain * 4, 15)                   // leader strength bonus
-      ));
+      const m   = metrics[sym];
+      const lag = leaderGain - m.change1h;
+      const { score, scoreBreakdown, vpLabel, vp, narCount, capTierVal } = scoreCandidate(sym, leader, m, m.vp);
+
+      const narLabel = narCount >= 2 ? '🔥 SAME ECOSYSTEM'
+                     : narCount === 1 ? '✓ RELATED'
+                     : '○ BROAD SECTOR';
 
       signals.push({
-        type:       'SECTOR',
-        symbol:     sym,
+        type:        'SECTOR',
+        symbol:      sym,
         sector,
         leader,
-        leaderGain: parseFloat(leaderGain.toFixed(2)),
+        leaderGain:  parseFloat(leaderGain.toFixed(2)),
         ownChange1h: parseFloat(m.change1h.toFixed(2)),
         ownChange4h: parseFloat(m.change4h.toFixed(2)),
+        change24h:   parseFloat(m.change24h.toFixed(2)),
         lag:         parseFloat(lag.toFixed(2)),
         price:       m.price,
         volRatio:    parseFloat(m.volRatio.toFixed(2)),
-        volDry,
+        volDry:      m.volRatio < 1.2,
         score,
-        narrative: `${leader.replace('USDT','')} pumped +${leaderGain.toFixed(1)}% — ${sym.replace('USDT','')} lagging by ${lag.toFixed(1)}%${volDry ? ', no vol yet' : ''}`,
+        scoreBreakdown,
+        vpLabel,
+        vp,
+        narLabel,
+        narCount,
+        capTierVal,
+        narrative: `${leader.replace('USDT','')} +${leaderGain.toFixed(1)}% · ${sym.replace('USDT','')} lags ${lag.toFixed(1)}% · ${narLabel} · VP: ${vpLabel}`,
       });
     });
   });
@@ -308,9 +584,8 @@ function detectSectorRotation(metrics) {
 }
 
 /**
- * CORRELATION divergence: for each corr pair,
- * compute 14-period price ratio z-score.
- * If z-score > 1.5 stdev, the laggard is a rotation candidate.
+ * CORRELATION divergence: correlated pair spread opens up.
+ * Laggard scored by 6-factor engine.
  */
 function detectCorrelationDivergence(metrics) {
   const signals = [];
@@ -320,26 +595,18 @@ function detectCorrelationDivergence(metrics) {
     const mB = metrics[symB];
     if (!mA || !mB) return;
 
-    // Simple proxy: 1h change divergence
-    const diff = mA.change1h - mB.change1h;
+    const diff    = mA.change1h - mB.change1h;
     const absDiff = Math.abs(diff);
-    if (absDiff < 2.0) return; // need meaningful divergence
+    if (absDiff < 0.3) return;
 
-    // The laggard is the one with the lower 1h gain
-    const laggard = diff > 0 ? symB : symA;
-    const leader  = diff > 0 ? symA : symB;
-    const mL      = metrics[laggard];
-    const mLeader = metrics[leader];
+    const laggard  = diff > 0 ? symB : symA;
+    const leader   = diff > 0 ? symA : symB;
+    const mL       = metrics[laggard];
+    const mLeader  = metrics[leader];
 
-    // Also check 4h for confirmation — laggard should not be in a strong downtrend
-    if (mL.change4h < -8) return; // don't catch falling knives
+    if (mL.change4h < -8) return;
 
-    const score = Math.min(100, Math.round(
-      40 +
-      Math.min(absDiff * 5, 35) +
-      (mL.volRatio < 1.2 ? 15 : 0) +
-      (mLeader.volRatio > 2 ? 10 : 0)
-    ));
+    const { score, scoreBreakdown, vpLabel, vp, narCount, capTierVal } = scoreCandidate(laggard, leader, mL, mL.vp);
 
     signals.push({
       type:        'CORR',
@@ -349,12 +616,18 @@ function detectCorrelationDivergence(metrics) {
       leaderGain:  parseFloat(mLeader.change1h.toFixed(2)),
       ownChange1h: parseFloat(mL.change1h.toFixed(2)),
       ownChange4h: parseFloat(mL.change4h.toFixed(2)),
+      change24h:   parseFloat(mL.change24h.toFixed(2)),
       lag:         parseFloat(absDiff.toFixed(2)),
       price:       mL.price,
       volRatio:    parseFloat(mL.volRatio.toFixed(2)),
       volDry:      mL.volRatio < 1.2,
       score,
-      narrative: `${leader.replace('USDT','')} +${mLeader.change1h.toFixed(1)}% while correlated ${laggard.replace('USDT','')} only ${mL.change1h.toFixed(1)}%`,
+      scoreBreakdown,
+      vpLabel,
+      vp,
+      narCount,
+      capTierVal,
+      narrative: `${leader.replace('USDT','')} +${mLeader.change1h.toFixed(1)}% · correlated ${laggard.replace('USDT','')} only ${mL.change1h.toFixed(1)}% · VP: ${vpLabel}`,
     });
   });
 
@@ -362,15 +635,14 @@ function detectCorrelationDivergence(metrics) {
 }
 
 /**
- * VOLUME FLOW: coin has a volume spike (≥ 3x) with positive price action.
- * Look for sector peers with no volume spike yet → money likely to rotate.
+ * VOLUME FLOW: sector peer absorbed volume spike.
+ * Quiet coins in same sector scored by 6-factor engine.
  */
 function detectVolumeFlow(metrics) {
   const signals = [];
-  const VOL_SPIKE = 2.5;
+  const VOL_SPIKE = 1.3;
 
   Object.entries(SECTORS).forEach(([sector, coins]) => {
-    // Find the vol leader
     const volLeaders = coins
       .filter(sym => metrics[sym] && metrics[sym].volRatio >= VOL_SPIKE && metrics[sym].change1h > -1)
       .sort((a, b) => metrics[b].volRatio - metrics[a].volRatio);
@@ -382,15 +654,10 @@ function detectVolumeFlow(metrics) {
     coins.forEach(sym => {
       if (!metrics[sym] || sym === leader) return;
       const m = metrics[sym];
-      if (m.volRatio > mLeader.volRatio * 0.8) return; // already has similar volume
-      if (m.change1h < -5)  return;         // skip if dumping hard
+      if (m.volRatio > mLeader.volRatio * 0.8) return;
+      if (m.change1h < -5) return;
 
-      const score = Math.min(100, Math.round(
-        40 +
-        Math.min(mLeader.volRatio * 4, 25) +
-        (m.volRatio < 1.0 ? 15 : 8) +
-        Math.min(mLeader.change1h * 3, 20)
-      ));
+      const { score, scoreBreakdown, vpLabel, vp, narCount, capTierVal } = scoreCandidate(sym, leader, m, m.vp);
 
       signals.push({
         type:        'VOLFLOW',
@@ -401,12 +668,18 @@ function detectVolumeFlow(metrics) {
         leaderVol:   parseFloat(mLeader.volRatio.toFixed(2)),
         ownChange1h: parseFloat(m.change1h.toFixed(2)),
         ownChange4h: parseFloat(m.change4h.toFixed(2)),
+        change24h:   parseFloat(m.change24h.toFixed(2)),
         lag:         parseFloat((mLeader.change1h - m.change1h).toFixed(2)),
         price:       m.price,
         volRatio:    parseFloat(m.volRatio.toFixed(2)),
         volDry:      m.volRatio < 1.2,
         score,
-        narrative: `${leader.replace('USDT','')} vol spike ${mLeader.volRatio.toFixed(1)}x — ${sym.replace('USDT','')} vol quiet (${m.volRatio.toFixed(1)}x)`,
+        scoreBreakdown,
+        vpLabel,
+        vp,
+        narCount,
+        capTierVal,
+        narrative: `${leader.replace('USDT','')} vol ${mLeader.volRatio.toFixed(1)}x · ${sym.replace('USDT','')} quiet · VP: ${vpLabel}`,
       });
     });
   });
@@ -423,16 +696,22 @@ function alertSignal(sig) {
 
   const typeEmoji = { SECTOR: '🔄', CORR: '⚖️', VOLFLOW: '💰' }[sig.type] || '📊';
   const typeLabel = { SECTOR: 'SECTOR ROTATION', CORR: 'CORR DIVERGENCE', VOLFLOW: 'VOL FLOW' }[sig.type] || sig.type;
+  const sb = sig.scoreBreakdown || {};
 
   const msg = [
     `${typeEmoji} <b>${typeLabel}</b>`,
     ``,
-    `<b>${sig.symbol}</b> — lagging behind <b>${sig.leader}</b>`,
+    `🎯 <b>${sig.symbol.replace('USDT','')}</b> ← lagging <b>${sig.leader.replace('USDT','')}</b>`,
     `💹 Leader +${sig.leaderGain}% | Own ${sig.ownChange1h > 0 ? '+' : ''}${sig.ownChange1h}%`,
     `📊 Lag: ${sig.lag}% | Vol: ${sig.volRatio}x`,
+    `📍 VP Level: ${sig.vpLabel || '—'}`,
     `🏷 Sector: ${sig.sector}`,
-    `💪 Score: ${sig.score}%`,
-    `📝 ${sig.narrative}`,
+    ``,
+    `📐 Score Breakdown:`,
+    `  Narrative: ${sb.narrative||'—'}%  Cap: ${sb.capTier||'—'}%`,
+    `  Momentum:  ${sb.momentum||'—'}%  Vol: ${sb.volDry||'—'}%`,
+    `  VP Level:  ${sb.vpLevel||'—'}%   Trend: ${sb.trend||'—'}%`,
+    `💪 TOTAL: <b>${sig.score}%</b>`,
   ].join('\n');
 
   sendTelegram(msg).catch(console.error);
@@ -453,7 +732,7 @@ async function runScan() {
     await Promise.allSettled(batch.map(async sym => {
       try {
         const [c1h, c4h, c1d] = await Promise.all([
-          fetchKlines(sym, '1h', 30),
+          fetchKlines(sym, '1h', 50),  // 50 candles for VP calculation
           fetchKlines(sym, '4h', 10),
           fetchKlines(sym, '1d', 5),
         ]);
